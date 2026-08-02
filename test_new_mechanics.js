@@ -97,7 +97,11 @@ const pyramidLine = r.ledger.amp.find(x => x.source && x.source.startsWith('Pyra
 console.log('Pyramid line:', pyramidLine);
 check('Pyramid owned', r.pyramidOwned, true);
 
-// --- Combination Magic Damage: Advanced Magic + Dragontongue + Dominus, applied only to active Fusion xMult ---
+// --- Combination Magic Damage: Advanced Magic + Dragontongue + Dominus, applied only while a real
+// Fusion X-multiplier targets the spell being viewed — but per the community damage-formula guide
+// ("every source of MDMG" explicitly lists combination damage alongside nexus/class mastery/etc.),
+// additive with the rest of the Magic Damage pool once it applies, not a multiplier on the Fusion
+// share specifically (same category of fix as Nexus). ---
 reset();
 state.selectedSpellId = 7; // Thunderstorm
 ownPassive('Advanced Magic', 3); // +45%
@@ -109,8 +113,10 @@ check('Dominus active', r.dominusActive, true);
 // comboDamagePct = 45 (Advanced Magic) + 40 (Dragontongue) + 25*1 (Dominus, 1 active fusion) = 110
 check('comboDamagePct = 110', r.comboDamagePct, 110);
 check('comboDamageApplies (fusion xmult present for Thunderstorm)', r.comboDamageApplies, true);
-// fusionXMult should be 5 * (1+110/100) = 10.5
-check('fusionXMult = 10.5', r.fusionXMult, 10.5);
+// Thunderstorm is at level 0 here (never leveled in this test), so mdmgPct is purely the combo
+// contribution: 110. xMultTotal is just Empyrean Wrath's own flat 5X, no combo folded into it.
+check('mdmgPct = 110 (combo damage added directly, not multiplied into xMultTotal)', r.mdmgPct, 110);
+check('xMultTotal = 5 (just the Fusion\'s own flat 5X, unaffected by combo damage now)', r.xMultTotal, 5);
 
 // Sanity: viewing a spell the fusion does NOT target -> combo bonus should not apply (no fusion xmult present)
 state.selectedSpellId = 1; // Magic Bolt
@@ -655,6 +661,60 @@ state.nexusSpellId = magicBoltSpell.id;
 state.selectedSpellId = magicBoltSpell.id;
 r = compute();
 check('Nexus still applies normally for a real Attack Spell (Magic Bolt)', r.nexusAppliesHere, true);
+
+// --- Nexus's +240% is additive with the rest of the Magic Damage pool (per the community
+// damage-formula guide's own "every source of MDMG" list, which names nexus explicitly), not a
+// separate late multiplier — verify it stacks correctly with another real MDMG source rather than
+// compounding multiplicatively with it. ---
+reset();
+own('Nexus');
+own('Mana Flame'); // +15% All Magic Damage, a plain MDMG-pool source
+state.nexusSpellId = magicBoltSpell.id;
+state.selectedSpellId = magicBoltSpell.id;
+spellState(magicBoltSpell.id).level = 0; // isolate to just Nexus + Mana Flame, no max-level bonus
+r = compute();
+const nexusMdmgLine = r.ledger.mdmg.find(x => x.source.startsWith('Nexus'));
+check('Nexus ledger contribution = 240%', nexusMdmgLine ? nexusMdmgLine.amount : NaN, 240);
+check('Nexus + Mana Flame: mdmgPct = 255 (240 + 15, additive, not compounding)', r.mdmgPct, 255);
+
+// --- Enchant: one dropdown per owned level (max 3), each independently granting +50% Damage plus
+// a spell-specific secondary effect — data recovered from raw effect slots 8-9 of each spell's own
+// encyclopedia row (previously mislabeled "a duplicate preview" and never read; see
+// build_gamedata.js). Fairy doubles both terms. ---
+const enchantItem = GAMEDATA.enchants.find(e => e.name === 'Enchant');
+function ownEnchant(level) { state.bonusSelections[bonusKey({ ...enchantItem, category: 'Passive' })] = level; }
+
+check('Shield/Cloaking/Armageddon/Magic Circle have no enchant data (the 4 Nexus-excluded spells)',
+  ['Shield', 'Cloaking', 'Armageddon', 'Magic Circle'].every(n => Object.values(GAMEDATA.spells).find(s => s.name === n).enchant == null), true);
+
+reset();
+ownEnchant(1);
+state.enchantSpellIds = [magicBoltSpell.id, null, null];
+state.selectedSpellId = magicBoltSpell.id;
+spellState(magicBoltSpell.id).level = 0; // isolate from Magic Bolt's own +100% max-level bonus
+r = compute();
+check('Enchant Lv1 on Magic Bolt: mdmgPct = 50', r.mdmgPct, 50);
+check('Enchant Lv1 on Magic Bolt: cooldownPct = -5 (its own secondary effect)', r.cooldownPct, -5);
+
+const fairyArtifact = GAMEDATA.artifacts.find(a => a.name === 'Fairy');
+state.bonusSelections[bonusKey({ ...fairyArtifact, category: 'Artifact' })] = 1;
+r = compute();
+check('Enchant + Fairy: mdmgPct = 100 (50 x 2)', r.mdmgPct, 100);
+check('Enchant + Fairy: cooldownPct = -10 (-5 x 2)', r.cooldownPct, -10);
+
+reset();
+ownEnchant(2);
+const fireballSpell = Object.values(GAMEDATA.spells).find(s => s.name === 'Fireball');
+state.enchantSpellIds = [magicBoltSpell.id, fireballSpell.id, null];
+spellState(magicBoltSpell.id).level = 0; // isolate from Magic Bolt's own +100% max-level bonus
+state.selectedSpellId = fireballSpell.id;
+r = compute();
+// Fireball's own secondary is a Size effect, not tracked anywhere damage-relevant, so mdmgPct
+// should be exactly the +50% Damage term with nothing extra leaking in from Magic Bolt's own slot.
+check('Enchant Lv2, slot 2 = Fireball: mdmgPct = 50 (Fireball\'s own +50%, Magic Bolt\'s slot has no effect while viewing Fireball)', r.mdmgPct, 50);
+state.selectedSpellId = magicBoltSpell.id;
+r = compute();
+check('Enchant Lv2, viewing Magic Bolt (slot 1): mdmgPct = 50 (Fireball\'s slot has no effect here)', r.mdmgPct, 50);
 
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

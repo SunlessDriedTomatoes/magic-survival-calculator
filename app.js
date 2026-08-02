@@ -83,6 +83,10 @@ function defaultState() {
     maxedClassIds: [],
     bonusSelections: {}, fusionIds: [], ultimatesOn: {},
     activeTab: 'calculator', nexusSpellId: null,
+    // One dropdown per owned Enchant level (max 3) — index i is meaningless once level drops below
+    // i+1 (that slot's dropdown stops rendering), but the stored id is left as-is rather than
+    // pruned, so re-leveling back up restores the previous pick instead of losing it.
+    enchantSpellIds: [null, null, null],
   };
 }
 function serializeState() {
@@ -223,9 +227,14 @@ const GATE_OF_CREATION_FUSION = GAMEDATA.fusions.find(f => f.name === 'Gate of C
 const DEM_FUSION = GAMEDATA.fusions.find(f => f.name === 'Deus Ex Machina') || null;
 const MAGIC_CIRCLE_FUSIONS = [OVERMIND_FUSION, PERPETUAL_ENGINE_FUSION, GATE_OF_CREATION_FUSION, DEM_FUSION].filter(Boolean);
 
-// Titan's Power and Nexus are both explicitly "multiply the total, not add to a pool" mechanics —
-// applied as their own late multiplicative factor rather than folded into the additive ATK%/MDMG%
-// pools everything else uses.
+// Titan's Power is explicitly a "multiply the total, not add to a pool" mechanic — applied as its
+// own late multiplicative factor rather than folded into the additive ATK%/MDMG% pools everything
+// else uses. Nexus, despite reading similarly at a glance ("Select one Attack Spell and increase
+// its Damage by 240%"), is NOT one of these — per the community damage-formula guide's own list of
+// "every source of MDMG" (base, magic level up, class mastery, nexus, combination damage, spell
+// specific damage, subject bonus), Nexus is explicitly named as an ordinary contributor to the
+// same additive Magic Damage pool as everything else, just not reflected in the in-game stat
+// screen's own AMD readout. See its own mdmgPct contribution in compute() below.
 const TITANS_POWER = GAMEDATA.artifacts.find(a => a.name === "Titan's Power") || null;
 const NEXUS_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Nexus') || null;
 const CONFLUX_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Conflux') || null;
@@ -245,11 +254,13 @@ const CROWN_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Crown') || null;
 // "per activated Synergy" scaling isn't captured by that value alone, so it's read here and
 // multiplied by the live active-synergy count instead of flowing through classifyEffect.
 const PYRAMID_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Pyramid') || null;
-// Combination Magic Damage is a distinct bucket from AMD — confirmed (via Dominus/Advanced
-// Magic/Dragontongue/Archmage's shared wording) to only ever boost Fusion ("Magic Combination")
-// output, never a single spell or All Magic broadly. Fusions have no damage of their own outside of
-// scaling their parent spell's X-multiplier (see fusionXMult below), so this bucket is applied as an
-// extra multiplier on just the Fusion-sourced share of xMultTotal, not folded into mdmgPct.
+// Combination Magic Damage only ever boosts Fusion ("Magic Combination") output — confirmed via
+// Dominus/Advanced Magic/Dragontongue/Archmage's shared wording — so it's still gated on a real
+// Fusion X-multiplier being present on the spell currently being viewed. But per the community
+// damage-formula guide's own list of "every source of MDMG" (base, magic level up, class mastery,
+// nexus, combination damage, spell specific damage, subject bonus), it's additive with the rest of
+// the Magic Damage pool once it applies, not a separate late multiplier on just the Fusion share
+// (same category of mistake Nexus had — see NEXUS_ARTIFACT above).
 const ADVANCED_MAGIC_PASSIVE = GAMEDATA.passives.find(p => p.name === 'Advanced Magic') || null;
 const DRAGONTONGUE_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Dragontongue') || null;
 const ARCHMAGE_CLASS = GAMEDATA.classes.school.find(c => c.name === 'Archmage') || null;
@@ -455,9 +466,23 @@ const PASSIVES_POST_MAX = GAMEDATA.passives.filter(p => p.postMaxEffect).map(p =
   effects: [p.postMaxEffect],
 }));
 
+// Enchant (Passive, max level 3): each owned level is one dropdown letting the player pick a Spell
+// to receive Enchant's own +50% Damage plus that Spell's own unique secondary effect (Cooldown or
+// Size, varies per spell — see each spell's own `enchant` field in gamedata.json, sourced from raw
+// slots 8-9 of its own encyclopedia row, previously undiscovered/unused — see build_gamedata.js).
+// Its own raw effects array is empty (all real behavior is spell-specific and hand-applied in
+// gatherActiveEffects below, gated on state.enchantSpellIds), so it's inert via the normal
+// classifyEffect flow-through — only present in BONUS_POOL so it appears in the normal Passives
+// picker UI, per request, with leveling working exactly like any other Passive.
+const ENCHANT_ITEM = GAMEDATA.enchants.find(e => e.name === 'Enchant') || null;
+// Fairy (Artifact): "{Enchant} effect becomes 2X" — doubles both Enchant's own +50% Damage and
+// each spell's unique secondary effect value, for every enchanted spell.
+const FAIRY_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Fairy') || null;
+
 const BONUS_POOL = [
   ...GAMEDATA.artifacts.map(x => ({ ...x, category: 'Artifact' })),
   ...GAMEDATA.passives.map(x => ({ ...x, category: 'Passive' })),
+  ...(ENCHANT_ITEM ? [{ ...ENCHANT_ITEM, category: 'Passive' }] : []),
   ...PASSIVES_POST_MAX.map(x => ({ ...x, category: 'Passive (Post-Max)' })),
   ...GAMEDATA.specialPassives.map(x => ({ ...x, category: 'Special Passive' })),
   ...GAMEDATA.research.map(x => ({ ...x, category: 'Research' })),
@@ -925,6 +950,15 @@ function oracleMultiplier() {
   return m ? 1 + parseFloat(m[1]) / 100 : 1;
 }
 
+// Scales an Enchant effect's value (Fairy's own 2X) while keeping .text in sync — classifyEffect
+// reads the number back out of .text for several effect kinds (cooldown%, size%), not just .value,
+// same reasoning as the leveled-Passive scaling elsewhere in gatherActiveEffects.
+function scaleEnchantEffectText(effect, mult) {
+  if (mult === 1) return effect;
+  const scaledValue = effect.value * mult;
+  return { id: effect.id, value: scaledValue, text: effect.text.replace(/([\d.]+)%$/, scaledValue + '%') };
+}
+
 function gatherActiveEffects(spellId) {
   if (spellId == null) spellId = state.selectedSpellId;
   const list = []; // { source, effect }
@@ -1011,6 +1045,26 @@ function gatherActiveEffects(spellId) {
       }
       const countSuffix = count > 1 ? ' x' + count : '';
       list.push({ source: item.name + ' (' + categoryLabel(item.category) + countSuffix + ')' + (scale !== 1 ? ' × Oracle' : ''), effect: scaledEff });
+    }
+  }
+  // Enchant (Passive): one dropdown per owned level (max 3), each independently picking a Spell to
+  // receive +50% Damage (2X with Fairy) plus that Spell's own unique secondary effect. Pushed as
+  // real {id,value,text} effects — same shape as anything else here — so classifyEffect's own
+  // target-matching naturally routes the damage term into mdmgPct and the secondary term wherever
+  // its own text classifies (e.g. cooldownLedger for a Cooldown-type secondary), with no bespoke
+  // per-kind dispatch needed. Multiplying value alone (not the text) would silently break
+  // classifyEffect's own cooldown/size regexes, which read the number back out of .text — see
+  // scaleEnchantEffectText below.
+  const enchantOwned = ENCHANT_ITEM && state.bonusSelections[bonusKey({ ...ENCHANT_ITEM, category: 'Passive' })];
+  if (enchantOwned) {
+    const fairyOwned = FAIRY_ARTIFACT && ownsArtifactByName('Fairy');
+    const fairyMult = fairyOwned ? 2 : 1;
+    for (let i = 0; i < enchantOwned; i++) {
+      const enchantSpell = state.enchantSpellIds[i] != null ? GAMEDATA.spells[state.enchantSpellIds[i]] : null;
+      if (!enchantSpell || !enchantSpell.enchant) continue;
+      const source = 'Enchant (Passive, ' + enchantSpell.name + ')' + (fairyOwned ? ' × Fairy' : '');
+      list.push({ source, effect: scaleEnchantEffectText(enchantSpell.enchant.damage, fairyMult) });
+      list.push({ source, effect: scaleEnchantEffectText(enchantSpell.enchant.secondary, fairyMult) });
     }
   }
   // fusions — multiple can be active simultaneously (the game supports several combination slots)
@@ -1255,6 +1309,11 @@ function compute() {
     const amt = perFusion * activeFusionCount;
     if (amt) { comboDamagePct += amt; comboLedger.push({ source: 'Dominus (Synergy, ' + activeFusionCount + ' active Combination Magic)', amount: amt }); }
   }
+  // xMults is already fully populated by this point (the main effects loop above runs first) except
+  // for Arbiter's own manual push later, which never carries the ' (Fusion)' tag anyway — so this
+  // check is safe to run here, before mdmgPct/MDMG are finalized below.
+  const comboDamageApplies = comboDamagePct !== 0 && xMults.some(x => x.source.endsWith(' (Fusion)'));
+  if (comboDamageApplies) mdmgPct += comboDamagePct;
 
   // Accelerator (Artifact): "Decrease All Magic Cooldown by 1% for every 3% of Movement Speed
   // Increase" — a computed CDR contribution (like Overmind/DEM's penalty above), so it's pushed
@@ -1375,6 +1434,27 @@ function compute() {
     }
   }
 
+  // Nexus: pick one Attack Spell to receive +240% Damage (scaled to +360% if Conflux is also
+  // active, per Conflux's "1.5X the effect of Nexus" text). Its own raw text ("increase its Damage
+  // by 240%") is phrased identically to any other MDMG-pool contributor, and the community
+  // damage-formula guide explicitly lists "nexus" among "every source of MDMG" (base, magic level
+  // up, class mastery, nexus, combination damage, spell specific damage, subject bonus) — so
+  // despite reading like a flat multiplier at a glance, it's additive with the rest of the Magic
+  // Damage pool, not a separate late-multiplicative factor the way Titan's Power really is.
+  const nexusOwned = NEXUS_ARTIFACT && !!state.bonusSelections[bonusKey({ ...NEXUS_ARTIFACT, category: 'Artifact' })];
+  const confluxActive = CONFLUX_SYNERGY && getActiveSynergies().some(s => s.id === CONFLUX_SYNERGY.id);
+  const nexusBasePct = 240 * (confluxActive ? 1.5 : 1);
+  // Re-validates state.nexusSpellId is still a real Attack Spell (same test as the dropdown's own
+  // filter) rather than trusting it outright — guards against a stale value saved before that
+  // filter existed, or a hand-edited localStorage value, pointing at Shield/Cloaking/Armageddon/
+  // Magic Circle.
+  const nexusSpellValid = state.nexusSpellId != null && GAMEDATA.classes.school.some(c => c.linkedSpellId === state.nexusSpellId);
+  const nexusAppliesHere = nexusOwned && nexusSpellValid && state.nexusSpellId === state.selectedSpellId;
+  if (nexusAppliesHere) {
+    mdmgPct += nexusBasePct;
+    ledger.mdmg.push({ source: 'Nexus (Relic' + (confluxActive ? ' + Conflux' : '') + ')', text: 'Increase Damage by ' + nexusBasePct + '%', amount: nexusBasePct });
+  }
+
   // Matrix (Artifact): "All Magic Damage increases by 20% of the total of [All Magic Size, Duration
   // Increase Rate] and [Cooldown Reduction Rate]" — Cooldown Reduction Rate is the positive-framed
   // reduction amount, i.e. the negative side of allMagicCooldownPct's own sign convention (a
@@ -1426,19 +1506,15 @@ function compute() {
   const arbiterActive = ARBITER_SYNERGY && getActiveSynergies().some(s => s.id === ARBITER_SYNERGY.id);
   if (arbiterActive) xMults.push({ source: 'Arbiter (Synergy) — Total Magic Damage Multiplier', amount: 1.25, dir: 'Increase' });
 
-  // xMultTotal is split into two running products — one for Fusion-sourced entries, one for
-  // everything else (evolutions, ultimates via the loop below) — so Combination Magic Damage can
-  // multiply only the Fusion share without also inflating unrelated evolution X-multipliers that
-  // happen to be active on the same spell view.
+  // xMultTotal accumulates every X-multiplier effect (fusions' flat "10X" grants, evolutions,
+  // ultimates below, Arbiter) into one running product. No fusion/non-fusion split needed anymore —
+  // that used to exist solely so Combination Magic Damage could multiply just the Fusion share, but
+  // it's additive with mdmgPct now instead (see comboDamageApplies above).
   let xMultTotal = 1;
-  let fusionXMult = 1;
   for (const x of xMults) {
     const m = x.dir === 'Decrease' ? (1 / x.amount) : x.amount;
-    if (x.source.endsWith(' (Fusion)')) fusionXMult *= m; else xMultTotal *= m;
+    xMultTotal *= m;
   }
-  const comboDamageApplies = comboDamagePct !== 0 && fusionXMult !== 1;
-  if (comboDamageApplies) fusionXMult *= (1 + comboDamagePct / 100);
-  xMultTotal *= fusionXMult;
 
   // Titan's Power doesn't multiply total damage by 1.5x — per community-reported testing, it
   // transforms the character's own ATK stat directly: "take the amount of ATK in your stat screen
@@ -1447,21 +1523,6 @@ function compute() {
   // through a modified ATK term, not a separate multiplicative bucket on the damage total.
   const titanOwned = TITANS_POWER && !!state.bonusSelections[bonusKey({ ...TITANS_POWER, category: 'Artifact' })];
   const ATK = titanOwned ? 100 + (ATKPreTitan - 100) * 1.5 : ATKPreTitan;
-
-  // Nexus: pick one Attack Spell to receive +240% Damage (scaled to +360% if Conflux is also
-  // active, per Conflux's "1.5X the effect of Nexus" text) — applied only when that spell is the
-  // one currently being viewed, as its own late multiplicative factor rather than folded into the
-  // spell's normal MDMG% pool.
-  const nexusOwned = NEXUS_ARTIFACT && !!state.bonusSelections[bonusKey({ ...NEXUS_ARTIFACT, category: 'Artifact' })];
-  const confluxActive = CONFLUX_SYNERGY && getActiveSynergies().some(s => s.id === CONFLUX_SYNERGY.id);
-  const nexusBasePct = 240 * (confluxActive ? 1.5 : 1);
-  // Re-validates state.nexusSpellId is still a real Attack Spell (same test as the dropdown's own
-  // filter) rather than trusting it outright — guards against a stale value saved before that
-  // filter existed, or a hand-edited localStorage value, pointing at Shield/Cloaking/Armageddon/
-  // Magic Circle.
-  const nexusSpellValid = state.nexusSpellId != null && GAMEDATA.classes.school.some(c => c.linkedSpellId === state.nexusSpellId);
-  const nexusAppliesHere = nexusOwned && nexusSpellValid && state.nexusSpellId === state.selectedSpellId;
-  const nexusMult = nexusAppliesHere ? 1 + nexusBasePct / 100 : 1;
 
   // Space Warp: its explosion damage scales 1:1 with Cloaking's own total Duration multiplier (see
   // SPACE_WARP_EVOLUTION above for the confirming real-data calculation) — only while viewing
@@ -1528,14 +1589,11 @@ function compute() {
   }
 
   const base = spell.base ? spell.base.damage : null;
-  const nonCrit = base != null ? base * ATK * AMP * MDMG * demMult * classMult * additionalDamageMult * nexusMult * xMultTotal : null;
+  const nonCrit = base != null ? base * ATK * AMP * MDMG * demMult * classMult * additionalDamageMult * xMultTotal : null;
   // Titan's delta: recompute with the pre-Titan ATK substituted in, holding every other factor
-  // constant — well-defined since multiplication commutes, same idea as the Nexus delta below,
-  // just swapping the ATK term specifically instead of dividing out a multiplier.
-  const nonCritWithoutTitan = base != null && titanOwned ? base * ATKPreTitan * AMP * MDMG * demMult * classMult * additionalDamageMult * nexusMult * xMultTotal : null;
+  // constant — well-defined since multiplication commutes.
+  const nonCritWithoutTitan = base != null && titanOwned ? base * ATKPreTitan * AMP * MDMG * demMult * classMult * additionalDamageMult * xMultTotal : null;
   const titanDelta = nonCritWithoutTitan != null ? nonCrit - nonCritWithoutTitan : null;
-  const nonCritWithoutNexus = base != null && nexusMult !== 1 ? nonCrit / nexusMult : null;
-  const nexusDelta = nonCritWithoutNexus != null ? nonCrit - nonCritWithoutNexus : null;
   const critMultFactor = critMulti / 100;
   const crit = nonCrit != null ? nonCrit * critMultFactor : null;
   // Heartbreaker's delta: same idea as titanDelta — recompute crit with the pre-Heartbreaker crit
@@ -1545,11 +1603,11 @@ function compute() {
   const expected = nonCrit != null ? nonCrit * (1 - critChance / 100) + crit * (critChance / 100) : null;
 
   return {
-    spell, ATK, ATKPreTitan, AMP, MDMG, xMultTotal, xMults, fusionXMult, base, nonCrit, crit, expected,
+    spell, ATK, ATKPreTitan, AMP, MDMG, xMultTotal, xMults, base, nonCrit, crit, expected,
     critChance, critMulti, critMultiPreHeartbreaker, critChancePct, critMultPct,
     atkPct, ampPct, mdmgPct, cooldownPct, countFlat, ledger, active,
     totalLevels, overmindActive, demActive, demMult, classMult, classScaling, activeUltimates,
-    titanOwned, titanDelta, nexusOwned, nexusAppliesHere, nexusMult, nexusDelta, confluxActive,
+    titanOwned, titanDelta, nexusOwned, nexusAppliesHere, confluxActive,
     arbiterActive, heartbreakerActive, heartbreakerDelta,
     monarchActive, crownOwned, pyramidOwned,
     comboDamagePct, comboLedger, comboDamageApplies, dominusActive,
@@ -1796,6 +1854,42 @@ function renderLeftPane() {
       ]),
     ]);
     pane.appendChild(nexusSection);
+  }
+
+  // Enchant — only relevant once owned: one dropdown per owned level (max 3), each independently
+  // picking a Spell for Enchant's own +50% Damage (×2 with Fairy) plus that Spell's own unique
+  // secondary effect.
+  const enchantLevel = ENCHANT_ITEM ? (state.bonusSelections[bonusKey({ ...ENCHANT_ITEM, category: 'Passive' })] || 0) : 0;
+  if (enchantLevel > 0) {
+    const fairyOn = FAIRY_ARTIFACT && ownsArtifactByName('Fairy');
+    const enchantableSpells = Object.values(GAMEDATA.spells).filter(s => s.enchant).sort((a, b) => a.name.localeCompare(b.name));
+    const enchantSection = el('div', { class: 'section' }, [
+      el('div', { class: 'section-title' }, 'Enchant'),
+      fairyOn ? el('div', { class: 'note' }, 'Fairy is active: ×2 applied to Enchant\'s own bonuses.') : null,
+    ]);
+    for (let i = 0; i < enchantLevel; i++) {
+      // Excludes whichever Spells are already picked in the OTHER slots — Enchant can't be applied
+      // to the same Spell twice.
+      const takenElsewhere = new Set(state.enchantSpellIds.filter((id, idx) => idx !== i && id != null));
+      enchantSection.appendChild(el('label', { class: 'field' }, [
+        el('div', { class: 'field-label' }, [el('span', {}, 'Slot ' + (i + 1))]),
+        (() => {
+          const sel = el('select', { onchange: e => { state.enchantSpellIds[i] = e.target.value ? parseInt(e.target.value, 10) : null; renderAll(); } });
+          sel.appendChild(el('option', { value: '' }, '— None —'));
+          for (const s of enchantableSpells) {
+            if (takenElsewhere.has(s.id)) continue;
+            const mult = fairyOn ? 2 : 1;
+            const dmgText = scaleEnchantEffectText(s.enchant.damage, mult).text;
+            const secText = scaleEnchantEffectText(s.enchant.secondary, mult).text;
+            const opt = el('option', { value: s.id }, s.name + ' (' + dmgText + ', ' + secText + ')');
+            if (state.enchantSpellIds[i] === s.id) opt.setAttribute('selected', 'selected');
+            sel.appendChild(opt);
+          }
+          return sel;
+        })(),
+      ]));
+    }
+    pane.appendChild(enchantSection);
   }
 
   // Fusion(s) — the game supports multiple simultaneous combination slots, so this is a
@@ -2180,21 +2274,17 @@ function renderResultsPane() {
       el('span', { class: 'lv ' + line.cls }, line.tag + ' ' + fmtSigned(line.amount, 2) + '%'),
     ]));
   }
-  // Multiplicative/transform sources (Titan's Power, Nexus) show the flat damage they add on top
-  // of everything else, rather than a %, since neither one is a contribution to one of the
-  // additive pools above.
+  // Titan's Power shows the flat damage it adds on top of everything else, rather than a %, since
+  // it's a transform on ATK itself, not a contribution to one of the additive pools above.
   if (r.titanOwned) {
     sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
       el('span', { class: 'lk' }, "Titan's Power (ATK " + fmt(r.ATKPreTitan, 0) + ' → ' + fmt(r.ATK, 0) + ')'),
       el('span', { class: 'lv' }, r.titanDelta != null ? '+' + fmt(r.titanDelta, 1) : '—'),
     ]));
   }
-  if (r.nexusOwned) {
-    sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk' }, 'Nexus' + (r.confluxActive ? ' + Conflux' : '') + (r.nexusAppliesHere ? ' (×' + fmt(r.nexusMult, 2) + ', multiplies total)' : ' (not this spell)')),
-      el('span', { class: 'lv' }, r.nexusDelta != null ? '+' + fmt(r.nexusDelta, 1) : '—'),
-    ]));
-  }
+  // Nexus is no longer shown here — it's a normal contributor to the additive Magic Damage pool
+  // (see compute()), so it already appears in the main Active Sources list above like any other
+  // "AMD" source, rather than as its own separate multiplicative-modifier row.
   if (r.heartbreakerActive) {
     sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
       el('span', { class: 'lk' }, 'Heartbreaker (Crit Multi ' + fmt(r.critMultiPreHeartbreaker, 0) + '% → ' + fmt(r.critMulti, 0) + '%, on Crit only)'),
@@ -2233,8 +2323,8 @@ function renderResultsPane() {
   }
   if (r.comboLedger.length) {
     sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk stat-combo' }, 'Combination Magic Damage (' + fmtSigned(r.comboDamagePct) + '%' + (r.comboDamageApplies ? ', ×' + fmt(1 + r.comboDamagePct / 100, 2) + ' on active Fusion multiplier' : ', no active Fusion multiplier on this spell') + ')'),
-      el('span', { class: 'lv' }, r.comboDamageApplies ? '×' + fmt(1 + r.comboDamagePct / 100, 2) : '—'),
+      el('span', { class: 'lk stat-combo' }, 'Combination Magic Damage (' + fmtSigned(r.comboDamagePct) + '%' + (r.comboDamageApplies ? ', added to Magic Damage' : ', no active Fusion multiplier on this spell') + ')'),
+      el('span', { class: 'lv' }, r.comboDamageApplies ? '+' + fmt(r.comboDamagePct, 1) + '%' : '—'),
     ]));
     for (const c of r.comboLedger) {
       sourceSection.appendChild(el('div', { class: 'ledger-row' }, [

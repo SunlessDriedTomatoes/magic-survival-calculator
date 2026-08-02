@@ -13,6 +13,7 @@ magicsurvival/decoded/*
 # Agent Kanban's own internal task-tracking files — not relevant to repo visitors.
 .agentkanban/
 AGENTS.md
+ANDROID_PC_APP_PLAN.md
 
 # Claude's own local notes preserving the fuller derivation history trimmed out of source comments.
 DERIVATION_NOTES.md

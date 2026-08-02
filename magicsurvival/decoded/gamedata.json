@@ -203,7 +203,19 @@
           ],
           "tier": 2
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 151,
+          "value": 50,
+          "text": "Increase Magic Bolt Damage by 50%"
+        },
+        "secondary": {
+          "id": 158,
+          "value": 5,
+          "text": "Decrease Magic Bolt Cooldown by 5%"
+        }
+      }
     },
     "2": {
       "id": 2,
@@ -332,7 +344,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 181,
+          "value": 50,
+          "text": "Increase Fireball Damage by 50%"
+        },
+        "secondary": {
+          "id": 187,
+          "value": 10,
+          "text": "Increase Fireball Size by 10%"
+        }
+      }
     },
     "3": {
       "id": 3,
@@ -501,7 +525,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 271,
+          "value": 50,
+          "text": "Increase Spirit Damage by 50%"
+        },
+        "secondary": {
+          "id": 281,
+          "value": 5,
+          "text": "Decrease Spirit Cooldown by 5%"
+        }
+      }
     },
     "4": {
       "id": 4,
@@ -672,7 +708,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 306,
+          "value": 50,
+          "text": "Increase Satellite Damage by 50%"
+        },
+        "secondary": {
+          "id": 311,
+          "value": 25,
+          "text": "Increase Satellite Rotation Speed by 25%"
+        }
+      }
     },
     "5": {
       "id": 5,
@@ -810,7 +858,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 371,
+          "value": 50,
+          "text": "Increase Frost Nova Damage by 50%"
+        },
+        "secondary": {
+          "id": 375,
+          "value": 10,
+          "text": "Increase Frost Nova Size by 10%"
+        }
+      }
     },
     "6": {
       "id": 6,
@@ -910,7 +970,8 @@
           "effects": [],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": null
     },
     "7": {
       "id": 7,
@@ -1081,7 +1142,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 211,
+          "value": 50,
+          "text": "Increase Thunderstorm Damage by 50%"
+        },
+        "secondary": {
+          "id": 219,
+          "value": 5,
+          "text": "Decrease Thunderstorm Cooldown by 5%"
+        }
+      }
     },
     "8": {
       "id": 8,
@@ -1218,7 +1291,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 291,
+          "value": 50,
+          "text": "Increase Electric Zone Damage by 50%"
+        },
+        "secondary": {
+          "id": 293,
+          "value": 10,
+          "text": "Increase Electric Zone Size by 10%"
+        }
+      }
     },
     "9": {
       "id": 9,
@@ -1357,7 +1442,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 251,
+          "value": 50,
+          "text": "Increase Tsunami Damage by 50%"
+        },
+        "secondary": {
+          "id": 259,
+          "value": 5,
+          "text": "Decrease Tsunami Cooldown by 5%"
+        }
+      }
     },
     "10": {
       "id": 10,
@@ -1502,7 +1599,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 321,
+          "value": 50,
+          "text": "Increase Meteor Damage by 50%"
+        },
+        "secondary": {
+          "id": 327,
+          "value": 5,
+          "text": "Decrease Meteor Cooldown by 5%"
+        }
+      }
     },
     "11": {
       "id": 11,
@@ -1615,7 +1724,8 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": null
     },
     "12": {
       "id": 12,
@@ -1767,7 +1877,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 391,
+          "value": 50,
+          "text": "Increase Cyclone Damage by 50%"
+        },
+        "secondary": {
+          "id": 395,
+          "value": 15,
+          "text": "Increase Cyclone Duration by 15%"
+        }
+      }
     },
     "13": {
       "id": 13,
@@ -1930,7 +2052,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 421,
+          "value": 50,
+          "text": "Increase Electric Shock Damage by 50%"
+        },
+        "secondary": {
+          "id": 431,
+          "value": 5,
+          "text": "Decrease Electric Shock Cooldown by 5%"
+        }
+      }
     },
     "14": {
       "id": 14,
@@ -2039,7 +2173,8 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": null
     },
     "15": {
       "id": 15,
@@ -2185,7 +2320,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 461,
+          "value": 50,
+          "text": "Increase Incineration Damage by 50%"
+        },
+        "secondary": {
+          "id": 472,
+          "value": 5,
+          "text": "Decrease Incineration Cooldown by 5%"
+        }
+      }
     },
     "16": {
       "id": 16,
@@ -2366,7 +2513,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 481,
+          "value": 50,
+          "text": "Increase Energy Bolt Damage by 50%"
+        },
+        "secondary": {
+          "id": 483,
+          "value": 10,
+          "text": "Increase Energy Bolt Size by 10%"
+        }
+      }
     },
     "17": {
       "id": 17,
@@ -2519,7 +2678,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 511,
+          "value": 50,
+          "text": "Increase Blizzard Damage by 50%"
+        },
+        "secondary": {
+          "id": 519,
+          "value": 5,
+          "text": "Decrease Blizzard Cooldown by 5%"
+        }
+      }
     },
     "18": {
       "id": 18,
@@ -2695,7 +2866,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 531,
+          "value": 50,
+          "text": "Increase Arcane Ray Damage by 50%"
+        },
+        "secondary": {
+          "id": 542,
+          "value": 5,
+          "text": "Decrease Arcane Ray Cooldown by 5%"
+        }
+      }
     },
     "19": {
       "id": 19,
@@ -2842,7 +3025,8 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": null
     },
     "20": {
       "id": 20,
@@ -2995,7 +3179,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 581,
+          "value": 50,
+          "text": "Increase Lava Zone Damage by 50%"
+        },
+        "secondary": {
+          "id": 590,
+          "value": 5,
+          "text": "Decrease Lava Zone Cooldown by 5%"
+        }
+      }
     },
     "21": {
       "id": 21,
@@ -3141,7 +3337,19 @@
           ],
           "tier": 1
         }
-      ]
+      ],
+      "enchant": {
+        "damage": {
+          "id": 601,
+          "value": 50,
+          "text": "Increase Flash Shock Damage by 50%"
+        },
+        "secondary": {
+          "id": 609,
+          "value": 5,
+          "text": "Decrease Flash Shock Cooldown by 5%"
+        }
+      }
     }
   },
   "artifacts": [

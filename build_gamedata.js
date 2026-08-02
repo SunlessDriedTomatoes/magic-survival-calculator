@@ -167,8 +167,26 @@ for (const row of aData) {
     // catalog of the same distinct (id,value) pairs the tier list uses, just repeated/duplicated
     // across slots however many times they happen to occur — so they're only used here as an id
     // lookup pool (matched to the tier list's own text via labelEffects, then deduped by resolved
-    // text), never read positionally. Slots 8-9 are still never read at all (confirmed duplicate
-    // "Damage+50% + [Cooldown/Size]" preview, matching descLines' second-to-last line).
+    // text), never read positionally.
+    //
+    // Slots 8-9 are a DIFFERENT thing entirely — an earlier pass here mislabeled them as "a
+    // duplicate Damage+50%/[Cooldown or Size] preview" and never read them, but that was wrong:
+    // they're the Enchant mechanic's own per-spell data (id 329 in the same file, 유형=인챈트,
+    // "Select one Attack Spell to Enhance") — always +50% Damage (slot 8) plus one spell-specific
+    // secondary effect (slot 9, Cooldown or Size depending on the spell), confirmed identical to
+    // description line 05's own "Increase [Spell] Damage by 50% @ [secondary]" text across all 21
+    // spells with zero exceptions, and absent (id=1/value=0, matching line05's "`") on exactly the
+    // 4 utility spells with no linked Class (Shield/Cloaking/Armageddon/Magic Circle) — the same 4
+    // Nexus can't target either.
+    const enchantSlots = getRawEffectSlots(aHeader, row, 9).slice(7);
+    const enchantLine = stripColor(row[aHeader.indexOf('효과 설명줄05')] || '');
+    const enchantParts = enchantLine && enchantLine !== '`' ? enchantLine.split('@').map(s => s.trim()) : [];
+    const enchant = (enchantSlots[0] && enchantSlots[0].id != null && enchantSlots[0].id > 1 && enchantParts.length === 2)
+      ? {
+        damage: { id: enchantSlots[0].id, value: enchantSlots[0].value, text: enchantParts[0] },
+        secondary: { id: enchantSlots[1].id, value: enchantSlots[1].value, text: enchantParts[1] },
+      }
+      : null;
     const rawSlots = getRawEffectSlots(aHeader, row, 7);
     const idPool = rawSlots.filter(s => s && s.id != null && s.id > 0); // excludes acquire markers (negative id) and the id=1 empty placeholder
     const tierListLine = descLines.length ? descLines[descLines.length - 1] : null;
@@ -200,6 +218,7 @@ for (const row of aData) {
       traitUnlockLevels,
       levelUpgrades,
       evolutions: [],
+      enchant,
     };
   }
 }

@@ -46,15 +46,18 @@ console.log('with Titan: ATKPreTitan=', r.ATKPreTitan, '(expect 130), ATK=', r.A
 console.log('  nonCrit=', r.nonCrit.toFixed(2), '| expect 1450.00 (base 5 x ATK 145 x MDMG 2.0)');
 console.log('  titanDelta:', r.titanDelta.toFixed(2), '| expect 150.00 (5 x 2.0 x (145-130))');
 
-// Add Nexus, apply to Magic Bolt
+// Add Nexus, apply to Magic Bolt — per the community damage-formula guide ("every source of MDMG"
+// explicitly lists nexus alongside class mastery/combination damage/etc.), Nexus's +240% is
+// additive with the rest of the Magic Damage pool, not a separate late multiplier. mdmgPct was 100
+// (Magic Bolt's own max-level bonus) -> 340 with Nexus -> MDMG 4.4 (was 2.0).
 const nexus = GAMEDATA.artifacts.find(a => a.name === 'Nexus');
 state.bonusSelections[bonusKey({ ...nexus, category: 'Artifact' })] = 1;
 state.nexusSpellId = 1;
 r = compute();
-console.log('with Nexus targeting Magic Bolt: nexusMult=', r.nexusMult, '(expect 3.4 = 1+240/100)');
-console.log('  nonCrit now:', r.nonCrit.toFixed(2), '| expect 4930.00 (1450 x 3.4)');
+console.log('with Nexus targeting Magic Bolt: mdmgPct=', r.mdmgPct, '(expect 340 = 100 + 240), MDMG=', r.MDMG, '(expect 4.4)');
+console.log('  nonCrit now:', r.nonCrit.toFixed(2), '| expect 3190.00 (5 x ATK145 x MDMG4.4)');
 
 // Switch to a different spell -> Nexus should not apply
 state.selectedSpellId = 2; // Fireball
 r = compute();
-console.log('viewing Fireball (Nexus targets Magic Bolt): nexusAppliesHere=', r.nexusAppliesHere, '(expect false), nexusMult=', r.nexusMult, '(expect 1)');
+console.log('viewing Fireball (Nexus targets Magic Bolt): nexusAppliesHere=', r.nexusAppliesHere, '(expect false), mdmgPct=', r.mdmgPct, '(expect 0, Fireball has no max-level bonus applied at Lv1)');
