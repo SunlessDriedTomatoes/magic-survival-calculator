@@ -157,7 +157,100 @@ state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Photon Explosion').id]
 state.selectedSpellId = 6;
 r = compute();
 check('Photon Explosion: base = 30', r.base, 30);
-check('Photon Explosion: nonCrit = 3000 (30 x ATK100 x AMP1 x MDMG1, no fusion xMult)', r.nonCrit, 3000);
+// Destruction Field grants no Shield-count bonus of its own, so shieldCount = base.number (1) ->
+// mdmgPct += 33 x 1 = 33, MDMG = 1.33. No All Magic Size source active -> photonExplosionSizeMult = 1.
+check('Photon Explosion: nonCrit = 3990 (30 x ATK100 x AMP1 x MDMG1.33 from +33%/Shield, no Size source active)', r.nonCrit, 3990);
+
+// --- Photon Explosion: per-Shield count scaling with a real extra Shield, plus the Size-based term ---
+reset();
+spellState(6).level = 5; spellState(6).evolutions.add(407); // Shield -> Barrier (unlocks at Lv5, "+2 Shields")
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Photon Explosion').id];
+own('Gunpowder'); // +10% All Magic Size (also grants its own ATK/AMP%, held constant via the formula check below)
+state.selectedSpellId = 6;
+r = compute();
+const photonMdmgLine = r.ledger.mdmg.find(x => x.source.startsWith('Photon Explosion'));
+check('Photon Explosion + Barrier: mdmg ledger amount = 99 (33% x 3 Shields: base 1 + Barrier +2)', photonMdmgLine ? photonMdmgLine.amount : NaN, 99);
+check("Photon Explosion: photonExplosionSizeMult = 1.1 (1 + Gunpowder's 10% All Magic Size)", r.photonExplosionSizeMult, 1.1);
+check('Photon Explosion + Barrier: nonCrit matches base x ATK x AMP x MDMG x Size mult', r.nonCrit, r.base * r.ATK * r.AMP * r.MDMG * r.photonExplosionSizeMult, 1);
+
+// --- Bishop: per-active-Shield ATK amp ---
+reset();
+spellState(6).level = 5; spellState(6).evolutions.add(407); // Shield -> Barrier (unlocks at Lv5, "+2 Shields")
+state.classId = GAMEDATA.classes.school.find(c => c.name === 'Bishop').id;
+state.classLevel = 1;
+state.selectedSpellId = 6;
+r = compute();
+const bishopAmpLine = r.ledger.amp.find(x => x.source.startsWith('Bishop'));
+check('Bishop: ampPct ledger amount = 30 (10% x 3 Shields: base 1 + Barrier +2)', bishopAmpLine ? bishopAmpLine.amount : NaN, 30);
+
+// --- Plasma Ray: ray count is derived from Arcane Ray's own total Cooldown Reduction, not a
+// player-set slider — "for each 1-second reduction from 4 seconds cooldown, 1 Ray is added" ---
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Plasma Ray').id];
+state.selectedSpellId = 18; // Arcane Ray
+r = compute();
+check('Plasma Ray: 0% CDR -> rayCount = 4 (the fixed baseline)', r.plasmaRayRayCount, 4);
+check('Plasma Ray: plasmaRayMult = 5 (1 + 4 rays)', r.plasmaRayMult, 5);
+
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Plasma Ray').id];
+state.selectedSpellId = 18; // Arcane Ray
+['Ouroboros', 'Black Cat', 'AI Magic', 'Magic Grimoire', 'Hourglass'].forEach(own); // stacked All Magic CDR
+r = compute();
+// Combined multiplicative CDR: 0.85 x 0.91 x 0.95 x 0.95 x 0.94 = 0.656199 -> cooldown 4 x 0.656199 =
+// 2.6248s -> 1.3752s reduced -> floor(1.3752) = 1 extra Ray -> 5 total.
+check('Plasma Ray: with stacked All Magic CDR, cooldownMult crosses a 1-second breakpoint -> rayCount = 5', r.plasmaRayRayCount, 5);
+check('Plasma Ray: plasmaRayMult = 6 (1 + 5 rays)', r.plasmaRayMult, 6);
+
+// --- Telekinetic Sword: Damage Multiplier stacks are derived from Spirit's own real base cooldown
+// (0.9s, no fusion override) x its own total CDR, not a guessed baseline ---
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Telekinetic Sword').id];
+state.selectedSpellId = 3; // Spirit
+r = compute();
+check('Telekinetic Sword: 0% CDR -> stacks = 0', r.telekineticSwordStacks, 0);
+check('Telekinetic Sword: telekineticSwordMult = 1 (no CDR yet)', r.telekineticSwordMult, 1);
+
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Telekinetic Sword').id];
+state.selectedSpellId = 3; // Spirit
+own('Ether Arrow'); // -20% Spirit-specific Cooldown
+r = compute();
+// 0.9s base x 0.8 = 0.72s actual -> 0.18s reduced -> floor(0.18/0.15) = 1 stack.
+check('Telekinetic Sword: Ether Arrow alone (-20% Spirit CDR) -> 1 stack', r.telekineticSwordStacks, 1);
+check('Telekinetic Sword: telekineticSwordMult = 2 (1 + 1 stack)', r.telekineticSwordMult, 2);
+
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Telekinetic Sword').id];
+state.selectedSpellId = 3; // Spirit
+own('Ether Arrow'); ['Diamond', 'Black Cat', 'Ouroboros'].forEach(own); // stacked spell-specific + All Magic CDR
+r = compute();
+// Combined multiplicative CDR: 0.8 x 0.97 x 0.91 x 0.85 = 0.600236 -> 0.9 x 0.600236 = 0.540212s
+// actual -> 0.359788s reduced -> floor(0.359788/0.15) = 2 stacks.
+check('Telekinetic Sword: stacked spell-specific + All Magic CDR -> 2 stacks', r.telekineticSwordStacks, 2);
+check('Telekinetic Sword: telekineticSwordMult = 3 (1 + 2 stacks)', r.telekineticSwordMult, 3);
+
+// --- Super Cyclone: no damage math (rate isn't in the extracted data) — just confirm the UI-note
+// flag is scoped correctly to "viewing Cyclone with the fusion active", nothing else. ---
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Super Cyclone').id];
+state.selectedSpellId = 12; // Cyclone
+r = compute();
+check('Super Cyclone: superCycloneActive = true while viewing Cyclone with the fusion on', r.superCycloneActive, true);
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Super Cyclone').id];
+state.selectedSpellId = 1; // Magic Bolt — different spell selected
+r = compute();
+check('Super Cyclone: superCycloneActive = false while viewing a different spell', r.superCycloneActive, false);
+
+// --- Furnace: Lava Zone's own Duration% (All-Magic-wide + Lava-Zone-specific) scales Damage 1:1,
+// same pattern as Space Warp. Furnace's own fusion effect grants "+30% Lava Zone Duration". ---
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Furnace').id];
+state.selectedSpellId = 20; // Lava Zone
+r = compute();
+check("Furnace: lavaZoneDurationBonusPct = 30 (Furnace's own +30% Lava Zone Duration)", r.durationPct + r.durationSpellPct, 30);
+check('Furnace: furnaceDurationMult = 1.3', r.furnaceDurationMult, 1.3);
 
 reset();
 spellState(11).level = 5; spellState(11).evolutions.add(453); // Cloaking -> Space Warp (unlocks at Lv5)

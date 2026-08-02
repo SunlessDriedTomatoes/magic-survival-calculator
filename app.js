@@ -81,7 +81,7 @@ function defaultState() {
     // is currently active. Separate from classLevel (which only gates the active class's own,
     // non-universal bonuses).
     maxedClassIds: [],
-    bonusSelections: {}, fusionIds: [], ultimatesOn: {}, quantumLaserRays: 4,
+    bonusSelections: {}, fusionIds: [], ultimatesOn: {},
     activeTab: 'calculator', nexusSpellId: null,
   };
 }
@@ -211,10 +211,7 @@ function fusionPrimarySpellId(fusion) {
 // deals damage on its own without a fusion built around it (Photon Explosion, Teleport) — this base
 // value is what those fusions' own damage effects (e.g. Teleport's "Increase Cloaking Damage by
 // 3X") multiply against — but the base figure itself isn't conditional on a fusion being selected,
-// same as any other spell's base. Photon Explosion's own additional "33% per Shield" / "in relation
-// to All Magic Size Increase" scaling still isn't modeled — dynamic mechanics needing their own
-// infrastructure (Shield-count tracking) — so Photon Explosion specifically will still undercount
-// until that follow-up is built.
+// same as any other spell's base. See PHOTON_EXPLOSION_FUSION below for its own count/size scaling.
 
 // The "Magic Circle" fusion family — Overmind, Perpetual Engine, and Gate of Creation all derive
 // from the Magic Circle spell's own (mutually-exclusive) evolutions, with Deus Ex Machina as
@@ -305,6 +302,83 @@ const WIZARDS_HAT_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Wizard’s
 // normal ultimates pipeline (see ultimates.json).
 const SPACE_WARP_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Cloaking') || null;
 const SPACE_WARP_EVOLUTION = SPACE_WARP_SPELL ? SPACE_WARP_SPELL.evolutions.find(e => e.name === 'Space Warp') || null : null;
+
+// Photon Explosion (Shield fusion): "[Damage] and [Size] of Shields increase by 33% per Shield" and
+// "[Damage] increases in relation to [All Magic Size Increase]" are both pure description text with
+// no structured {id,value} effect behind them — same situation as Space Warp above. The per-Shield
+// term follows the same shape as Magic Wand/Otherworldly Tentacle (flat % x total spell count); the
+// Size-increase term is assumed 1:1 with Shield's own total Size% by direct analogy to Space Warp's
+// confirmed 1:1 Duration scaling — this specific ratio for Photon Explosion has no independent
+// real-data confirmation the way Space Warp's does.
+const PHOTON_EXPLOSION_FUSION = GAMEDATA.fusions.find(f => f.name === 'Photon Explosion') || null;
+const SHIELD_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Shield') || null;
+
+// Bishop (Class): "For each active Shield, ATK is Amplified by 10%" — a real per-Shield-count ATK
+// amp with no structured effect (pure description text, parsed directly below since it only ever
+// appears on this one class in this one phrasing).
+const BISHOP_CLASS = GAMEDATA.classes.school.find(c => c.name === 'Bishop') || null;
+
+// Plasma Ray (Arcane Ray fusion): "Arcane Ray Damage Multiplier increases by 1 per count", where
+// "count" is the fusion's own ray count — "Arcane Ray is Fixed at 4 [Rays] ...; for each 1-second
+// reduction from 4 seconds cooldown, 1 Ray is added". Both the 4-ray/4-second baseline and the
+// 1-second step are explicit numbers in the fusion's own description text, not inferred — and the
+// resulting 4-7 range matches Quantum Laser's independently-confirmed rayMin/rayMax exactly (see
+// ultimates.json's own note: "4 rays -> 144, 7 rays -> 441"). So the ray count is derived directly
+// from Arcane Ray's own total Cooldown Reduction (already-tracked per-spell cooldown pool) rather
+// than left as a player-set slider.
+const PLASMA_RAY_FUSION = GAMEDATA.fusions.find(f => f.name === 'Plasma Ray') || null;
+function computePlasmaRayRayCount() {
+  if (!ARCANE_RAY_SPELL) return 4;
+  const ledger = [];
+  for (const { source, effect } of gatherActiveEffects(ARCANE_RAY_SPELL.id)) {
+    const c = classifyEffect(effect, 'Arcane Ray');
+    if (c.kind === 'cooldown' || c.kind === 'cooldownAll') ledger.push({ source, amount: c.amount });
+  }
+  const cooldownMult = multiplicativePoolMult(ledger);
+  const baseRays = 4, baseCooldown = 4, stepSeconds = 1;
+  const actualCooldown = baseCooldown * cooldownMult;
+  const raysAdded = Math.max(0, Math.floor((baseCooldown - actualCooldown) / stepSeconds));
+  return Math.max(4, Math.min(7, baseRays + raysAdded));
+}
+
+// Telekinetic Sword (Spirit fusion): "For every 0.15 seconds reduction in Spirit cooldown, [Damage
+// Multiplier] increases by 1" — a real per-hit multiplier (same "Damage Multiplier" terminology
+// Plasma Ray uses, confirmed there against real reported ultimate values). Unlike Plasma Ray, this
+// doesn't override Spirit's cooldown baseline — Spirit's own real base cooldown (0.9s, from the
+// mined data) is what the 0.15s steps are measured against. The fusion's sibling "[Attack Count]
+// increases by 1" on the same line is a cast-frequency effect, not a per-hit one, so it's
+// deliberately not modeled here (same reasoning as War Climate/Frenzy/Brandish's cooldown-driven
+// cast-count effects — this calculator computes per-hit damage, not DPS).
+const TELEKINETIC_SWORD_FUSION = GAMEDATA.fusions.find(f => f.name === 'Telekinetic Sword') || null;
+function computeTelekineticSwordStacks() {
+  if (!SPIRIT_SPELL || !SPIRIT_SPELL.base || SPIRIT_SPELL.base.cooldown == null) return 0;
+  const ledger = [];
+  for (const { source, effect } of gatherActiveEffects(SPIRIT_SPELL.id)) {
+    const c = classifyEffect(effect, 'Spirit');
+    if (c.kind === 'cooldown' || c.kind === 'cooldownAll') ledger.push({ source, amount: c.amount });
+  }
+  const cooldownMult = multiplicativePoolMult(ledger);
+  const baseCooldown = SPIRIT_SPELL.base.cooldown;
+  const actualCooldown = baseCooldown * cooldownMult;
+  const stepSeconds = 0.15;
+  return Math.max(0, Math.floor((baseCooldown - actualCooldown) / stepSeconds));
+}
+
+// Furnace (Lava Zone fusion): "[Damage] increases in relation to Lava Zone's duration" — assumed 1:1
+// with Lava Zone's own total Duration%, by the same analogy-to-Space-Warp reasoning as Photon
+// Explosion's Size term above (not independently confirmed for Furnace specifically).
+const FURNACE_FUSION = GAMEDATA.fusions.find(f => f.name === 'Furnace') || null;
+const LAVA_ZONE_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Lava Zone') || null;
+
+// Super Cyclone (Cyclone fusion): "[Damage Multiplier] increases in relation to how long Cyclones
+// persist" — unlike every other fusion in the dataset, it has no flat "Increase X Damage by NX"
+// effect of its own at all; this elapsed-time scaling is its entire damage bonus. Its two other
+// structured effects (ids 407, 1112) have no text template anywhere in the extracted string
+// tables — not just unresolved here, genuinely absent from the mined data — so the actual rate
+// can't be determined. The number this calculator shows is therefore just the spawn/initial
+// damage (no fabricated multiplier); see the UI note wired to SUPER_CYCLONE_FUSION for the
+// player-facing caveat.
+const SUPER_CYCLONE_FUSION = GAMEDATA.fusions.find(f => f.name === 'Super Cyclone') || null;
 
 // ===================== Stat-conversion relics (Oculus/Carnival/Gaia/Abyss/Accelerator/Aegis/
 // Akashic Record/Magic Wand/Otherworldly Tentacle) =====================
@@ -764,8 +838,10 @@ function classifyEffect(effect, spellName) {
   if (/^(Increase|Decrease) Damage Taken by [\d.]+%/.test(text)) {
     return { kind: 'damageTaken', amount: (/^Decrease/.test(text) ? -1 : 1) * effect.value };
   }
-  // number of casts/projectiles
-  const numMatch = text.match(/^Increase the number of (.+?) by ([\d.]+)(X)?/i);
+  // number of casts/projectiles — "the number of X" (most spells) and "the maximum number of X"
+  // (Shield specifically, e.g. Barrier/Reconstruct/Bishop's own "+1 Shield") are the same kind of
+  // grant under two different phrasings in the raw text.
+  const numMatch = text.match(/^Increase the (?:maximum )?number of (.+?) by ([\d.]+)(X)?/i);
   if (numMatch) {
     const [, target, amt, isX] = numMatch;
     // target is pluralized spell name loosely; match by spell name prefix
@@ -1253,6 +1329,27 @@ function compute() {
     const amt = perUnit * arcaneRayCount;
     if (amt) { mdmgPct += amt; ledger.mdmg.push({ source: 'Otherworldly Tentacle (Relic, ' + arcaneRayCount + ' Arcane Rays)', text: 'Increase Damage by ' + amt + '%', amount: amt }); }
   }
+  // Photon Explosion (Fusion): "[Damage] and [Size] of Shields increase by 33% per Shield" — same
+  // per-count shape as Magic Wand/Otherworldly Tentacle above. See PHOTON_EXPLOSION_FUSION for why
+  // this is hand-coded rather than flowing through classifyEffect (pure description text, no
+  // structured effect).
+  const photonExplosionActive = PHOTON_EXPLOSION_FUSION && state.fusionIds.includes(PHOTON_EXPLOSION_FUSION.id);
+  if (photonExplosionActive && SHIELD_SPELL && spell.name === 'Shield') {
+    const shieldCount = computeSpellTotalCount(SHIELD_SPELL);
+    const amt = 33 * shieldCount;
+    if (amt) { mdmgPct += amt; ledger.mdmg.push({ source: 'Photon Explosion (Fusion, ' + shieldCount + ' Shields)', text: 'Increase Damage by ' + amt + '%', amount: amt }); }
+  }
+  // Bishop (Class): "For each active Shield, ATK is Amplified by 10%" — reads the class's own
+  // structured effect value rather than hardcoding, same as Archmage's combo-damage block above.
+  if (BISHOP_CLASS && state.classId === BISHOP_CLASS.id && SHIELD_SPELL) {
+    for (const eff of unlockedClassEffects(BISHOP_CLASS, state.classLevel)) {
+      if (/For each active Shield, ATK/.test(eff.text || '')) {
+        const shieldCount = computeSpellTotalCount(SHIELD_SPELL);
+        const amt = eff.value * shieldCount;
+        if (amt) { ampPct += amt; ledger.amp.push({ source: 'Bishop (Class Lv' + state.classLevel + ', ' + shieldCount + ' Shields)', text: 'Amplify ATK by ' + amt + '%', amount: amt }); }
+      }
+    }
+  }
 
   // Matrix (Artifact): "All Magic Damage increases by 20% of the total of [All Magic Size, Duration
   // Increase Rate] and [Cooldown Reduction Rate]" — Cooldown Reduction Rate is the positive-framed
@@ -1352,6 +1449,38 @@ function compute() {
   // multiplied in directly here rather than pushed into xMults, which would silently no-op this late.
   if (spaceWarpDurationMult !== 1) xMultTotal *= spaceWarpDurationMult;
 
+  // Photon Explosion: "[Damage] increases in relation to [All Magic Size Increase]" — unlike
+  // Furnace/Space Warp below, its own text names "All Magic Size Increase" specifically, not
+  // Shield's own Size, so this reads the already-tracked All-Magic-wide sizePct pool directly
+  // rather than a spell-specific one (see PHOTON_EXPLOSION_FUSION above for the 1:1 ratio caveat).
+  const photonExplosionSizeMult = photonExplosionActive && spell.name === 'Shield' ? Math.max(0, 1 + sizePct / 100) : 1;
+  if (photonExplosionSizeMult !== 1) xMultTotal *= photonExplosionSizeMult;
+
+  // Furnace: "[Damage] increases in relation to Lava Zone's duration" — assumed 1:1 with Lava
+  // Zone's own total Duration% (All-Magic-wide + Lava-Zone-specific sources combined), same
+  // pattern as Space Warp's confirmed Cloaking-Duration scaling above (see FURNACE_FUSION).
+  const furnaceActive = FURNACE_FUSION && state.fusionIds.includes(FURNACE_FUSION.id);
+  const lavaZoneDurationBonusPct = durationPct + durationSpellPct;
+  const furnaceDurationMult = furnaceActive && spell.name === 'Lava Zone' ? Math.max(0, 1 + lavaZoneDurationBonusPct / 100) : 1;
+  if (furnaceDurationMult !== 1) xMultTotal *= furnaceDurationMult;
+
+  // Plasma Ray: "Arcane Ray Damage Multiplier increases by 1 per count" — see
+  // computePlasmaRayRayCount above for how the ray count itself is derived.
+  const plasmaRayActive = PLASMA_RAY_FUSION && state.fusionIds.includes(PLASMA_RAY_FUSION.id);
+  const plasmaRayRayCount = plasmaRayActive ? computePlasmaRayRayCount() : 0;
+  const plasmaRayMult = plasmaRayActive && spell.name === 'Arcane Ray' ? 1 + plasmaRayRayCount : 1;
+  if (plasmaRayMult !== 1) xMultTotal *= plasmaRayMult;
+
+  // Telekinetic Sword: see computeTelekineticSwordStacks above.
+  const telekineticSwordActive = TELEKINETIC_SWORD_FUSION && state.fusionIds.includes(TELEKINETIC_SWORD_FUSION.id);
+  const telekineticSwordStacks = telekineticSwordActive ? computeTelekineticSwordStacks() : 0;
+  const telekineticSwordMult = telekineticSwordActive && spell.name === 'Spirit' ? 1 + telekineticSwordStacks : 1;
+  if (telekineticSwordMult !== 1) xMultTotal *= telekineticSwordMult;
+
+  // Super Cyclone: no damage math here (see SUPER_CYCLONE_FUSION above) — just a flag for the UI
+  // caveat note, true only while actually viewing Cyclone with the fusion active.
+  const superCycloneActive = !!(SUPER_CYCLONE_FUSION && spell.name === 'Cyclone' && state.fusionIds.includes(SUPER_CYCLONE_FUSION.id));
+
   // Ultimates — only the ones belonging to a fusion whose parent spell is the one currently
   // being viewed actually apply (a Meteor ultimate shouldn't multiply Magic Bolt's damage).
   const activeUltimates = [];
@@ -1363,7 +1492,7 @@ function compute() {
     if (fusionPrimarySpellId(fusion) !== state.selectedSpellId) continue;
     if (!isUltimateUnlocked(fusion)) continue;
     let mult = null;
-    if (ult.special === 'raySquared') mult = state.quantumLaserRays * state.quantumLaserRays;
+    if (ult.special === 'raySquared') mult = plasmaRayRayCount * plasmaRayRayCount;
     else if (ult.special === 'critScalingLinear') mult = ult.multiplier + (ult.multiplierMax - ult.multiplier) * (critChance / 100);
     else if (ult.multiplier) mult = ult.multiplier;
     if (mult) { xMultTotal *= mult; activeUltimates.push({ ult, mult }); }
@@ -1401,6 +1530,8 @@ function compute() {
     damageReductionPct, oculusOwned, carnivalOwned, gaiaOwned, abyssOwned, acceleratorOwned, aegisOwned,
     akashicRecordOwned, magicWandOwned, otherworldlyTentacleOwned,
     spaceWarpEvoActive, cloakingDurationBonusPct, spaceWarpDurationMult, durationSpellPct,
+    photonExplosionActive, photonExplosionSizeMult, furnaceActive, furnaceDurationMult, plasmaRayActive, plasmaRayMult, plasmaRayRayCount,
+    telekineticSwordActive, telekineticSwordStacks, telekineticSwordMult, superCycloneActive,
   };
 }
 
@@ -1574,7 +1705,8 @@ function renderLeftPane() {
           const sel = el('select', { onchange: e => { state.classId = e.target.value ? parseInt(e.target.value, 10) : null; renderAll(); } });
           sel.appendChild(el('option', { value: '' }, '— None —'));
           for (const c of [...GAMEDATA.classes.school].sort((a, b) => a.name.localeCompare(b.name))) {
-            const opt = el('option', { value: c.id }, c.name);
+            const linkedSpell = c.linkedSpellId != null ? GAMEDATA.spells[c.linkedSpellId] : null;
+            const opt = el('option', { value: c.id }, c.name + (linkedSpell ? ' — ' + linkedSpell.name : ''));
             if (state.classId === c.id) opt.setAttribute('selected', 'selected');
             sel.appendChild(opt);
           }
@@ -1591,7 +1723,8 @@ function renderLeftPane() {
           const sel = el('select', { onchange: e => { state.testSubjectId = e.target.value ? parseInt(e.target.value, 10) : null; renderAll(); } });
           sel.appendChild(el('option', { value: '' }, '— None —'));
           for (const c of [...GAMEDATA.classes.testSubject].sort((a, b) => a.name.localeCompare(b.name))) {
-            const opt = el('option', { value: c.id }, c.name);
+            const linkedSpell = c.linkedSpellId != null ? GAMEDATA.spells[c.linkedSpellId] : null;
+            const opt = el('option', { value: c.id }, c.name + (linkedSpell ? ' — ' + linkedSpell.name : ''));
             if (state.testSubjectId === c.id) opt.setAttribute('selected', 'selected');
             sel.appendChild(opt);
           }
@@ -1677,6 +1810,7 @@ function renderLeftPane() {
       el('div', {}, [
         el('div', { class: 'pi-name' }, f.name + (f.ultimateName && f.ultimateName !== '`' ? ' → ' + f.ultimateName : '')),
         el('div', { class: 'pi-desc' }, descriptionNodes(f.description, f.effects)),
+        f.name === 'Super Cyclone' ? el('div', { class: 'note' }, 'Damage shown is the initial/spawn value — this fusion\'s own Damage Multiplier scales up the longer a Cyclone persists, but the exact rate isn\'t in the extracted data, so it isn\'t included in the number below.') : null,
       ]),
     ]);
     fusionList.appendChild(row);
@@ -1751,14 +1885,9 @@ function renderLeftPane() {
         ultBox.appendChild(el('div', { class: 'note' }, 'Locked — select the matching Class + Test Subject above to unlock this.'));
       }
       if (ult.special === 'raySquared' && state.ultimatesOn[fusionId]) {
-        const rayVal = el('span', { class: 'val' }, String(state.quantumLaserRays));
-        ultBox.appendChild(el('label', { class: 'field' }, [
-          el('div', { class: 'field-label' }, [el('span', {}, 'Active rays'), rayVal]),
-          el('input', {
-            type: 'range', min: String(ult.rayMin), max: String(ult.rayMax), value: state.quantumLaserRays,
-            oninput: e => { state.quantumLaserRays = parseInt(e.target.value, 10); rayVal.textContent = String(state.quantumLaserRays); renderResultsPane(); },
-          }),
-        ]));
+        // Derived from Arcane Ray's own total Cooldown Reduction (see computePlasmaRayRayCount) —
+        // not player-editable, so this is a plain readout rather than an input.
+        ultBox.appendChild(el('div', { class: 'field-label' }, [el('span', {}, 'Active rays'), el('span', { class: 'val' }, String(computePlasmaRayRayCount()))]));
       }
     }
     fusionSection.appendChild(ultBox);
@@ -1971,6 +2100,9 @@ function renderResultsPane() {
 
   if (r.overmindActive || r.demActive) {
     pane.appendChild(el('div', { class: 'note', style: 'padding:0 4px;' }, 'Total invested spell levels: ' + r.totalLevels + ' — Overmind/Deus Ex Machina scale off this.'));
+  }
+  if (r.superCycloneActive) {
+    pane.appendChild(el('div', { class: 'note', style: 'padding:0 4px;' }, 'This is the initial/spawn damage. Super Cyclone\'s own Damage Multiplier increases the longer a Cyclone persists, but the exact rate isn\'t in the extracted data, so it isn\'t reflected above.'));
   }
 
   // Active synergies (auto-triggered by owned artifacts) — damage-irrelevant ones (pure utility/QoL,

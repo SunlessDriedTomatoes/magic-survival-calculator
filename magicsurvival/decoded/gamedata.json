@@ -328,11 +328,6 @@
               "id": -2,
               "value": 1,
               "text": "Increase Fireball Penetration by 1"
-            },
-            {
-              "id": 183,
-              "value": 1,
-              "text": "Increase Fireball Penetration by 1"
             }
           ],
           "tier": 1
@@ -824,6 +819,7 @@
       "base": {
         "name": "Shield",
         "damage": 30,
+        "number": 1,
         "note": "confirmed by user directly; blocks damage once per cast, unrelated to its own damage stat"
       },
       "maxLevel": 5,
@@ -871,11 +867,6 @@
           ],
           "effects": [
             {
-              "id": -6,
-              "value": 1,
-              "text": "Increase the maximum number of Shields by 1"
-            },
-            {
               "id": 231,
               "value": 2,
               "text": "Increase the maximum number of Shields by 2"
@@ -892,11 +883,6 @@
             "Increase Shield Cooldown by 20%"
           ],
           "effects": [
-            {
-              "id": -6,
-              "value": 1,
-              "text": "Increase the maximum number of Shields by 1"
-            },
             {
               "id": 231,
               "value": 1,
@@ -921,13 +907,7 @@
           "description": [
             "Cause an [Explosion] when the Shield is broken. @ The Explosion trails the character for a short duration and damages enemies 〈4 times〉."
           ],
-          "effects": [
-            {
-              "id": -6,
-              "value": 1,
-              "text": "Increase the maximum number of Shields by 1"
-            }
-          ],
+          "effects": [],
           "tier": 1
         }
       ]
@@ -2055,11 +2035,6 @@
               "id": 448,
               "value": -100,
               "text": "Decrease Armageddon Cooldown by 10%"
-            },
-            {
-              "id": 443,
-              "value": 10,
-              "text": "Decrease Armageddon Cooldown by 10%"
             }
           ],
           "tier": 1
@@ -2507,11 +2482,6 @@
               "id": 1211,
               "value": 2,
               "text": "Increase Blizzard Damage by 2X"
-            },
-            {
-              "id": 1216,
-              "value": 135,
-              "text": "Increase Blizzard Size by 1.35X"
             },
             {
               "id": 1221,

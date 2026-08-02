@@ -16,7 +16,7 @@
   "18": { "name": "Arcane Ray", "damage": 9, "size": 0.25, "duration": 0.8, "number": 1, "cooldown": 3.5 },
   "20": { "name": "Lava Zone", "damage": 10, "damageInterval": 0.5, "size": 1, "duration": 6, "number": 1, "cooldown": 5 },
   "21": { "name": "Flash Shock", "damage": 18, "size": 1, "number": 1, "cooldown": 10 },
-  "6": { "name": "Shield", "damage": 30, "note": "confirmed by user directly; blocks damage once per cast, unrelated to its own damage stat" },
+  "6": { "name": "Shield", "damage": 30, "number": 1, "note": "confirmed by user directly; blocks damage once per cast, unrelated to its own damage stat" },
   "11": { "name": "Cloaking", "damage": 500, "note": "confirmed by user directly" },
   "14": { "name": "Armageddon", "note": "not provided by user - unknown base stats" },
   "19": { "name": "Magic Circle", "note": "no direct damage stat (utility - amplifies attack during duration)" }

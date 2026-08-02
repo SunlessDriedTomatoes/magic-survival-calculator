@@ -214,7 +214,14 @@ for (const row of aData) {
       id: parseInt(row[AIDX.id], 10),
       name,
       description: descLines,
-      effects: labelEffects(getEffectsGeneric(aHeader, row, 9).filter(e => e.id !== -1), descLines),
+      // trimEffectDuplicates wasn't applied here originally (only to class data) — evolutions can
+      // carry the same duplicate-effect-row extraction quirk (e.g. Shield's Reconstruct: a generic
+      // marker id and its own real id both resolving to the identical "Increase the maximum number
+      // of Shields by 1" text, when the description only supports one real grant). id -6 is excluded
+      // outright alongside -1 — it only ever appears on Shield's evolutions, always as an identical
+      // "+1 Shield" (id 1, value 1), including on Destruction Field, whose own description never
+      // mentions shield count at all — a generic per-evolution marker, not a real per-evolution grant.
+      effects: trimEffectDuplicates(labelEffects(getEffectsGeneric(aHeader, row, 9).filter(e => e.id !== -1 && e.id !== -6), descLines), descLines),
     });
   }
 }
