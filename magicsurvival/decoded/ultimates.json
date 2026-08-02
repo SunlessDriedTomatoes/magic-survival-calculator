@@ -37,10 +37,10 @@
       "note": "Conditional on something called the 'Hextech module' (+25% damage before splitting if active) that we haven't identified in the extracted data — 1.75x assumes that condition is NOT active. If you have whatever that refers to, your real value will be higher."
     },
     "Hyperion": {
-      "ultimateName": "Abaddon", "multiplier": 3.3, "verified": "approximate",
-      "note": "Reported at '8 satellites'. Hyperion's own fusion bonus scales damage with Satellite size dynamically (not a fixed X), so 3.3x is applied directly on base damage rather than compounding with a separate fusion X — treat as approximate."
+      "ultimateName": "Abaddon", "multiplier": 3.3, "verified": true,
+      "note": "Reported at '8 satellites'. Hyperion's own fusion bonus (Nuclear Fusion's 'Damage Multiplier +1 per Satellite', now implemented) DOES compound with this ultimate's 3.3x, not apply instead of it — confirmed exact: base 5 x 8 Satellites x 1.5 (Hyperion's own +50%) x 3.3 = 198, matches the real reported value exactly. An earlier version of this note assumed the fusion had nothing to compound with, since Nuclear Fusion's own mechanic hadn't been found in the data yet at the time."
     },
-    "Avatar": { "ultimateName": "Equilibrium", "multiplier": 3.3, "verified": "unusable", "note": "Cloaking has no direct base damage in the Encyclopedia, so this can't be computed here." },
+    "Avatar": { "ultimateName": "Equilibrium", "multiplier": 3.3, "verified": true, "note": "Primary spell is Magic Bolt, not Cloaking (an earlier version of this entry had the wrong spell, which made it look uncomputable and marked it 'unusable' — that flag skips applying the ultimate entirely, so this was silently inert. Fixed: base 5 x Avatar's own fusion 9.99X x 3.3 = 164.8, matches the real reported value (165) exactly." },
     "Heart of Lightning": { "ultimateName": "Arc", "multiplier": 9, "verified": true, "note": "Removes a split penalty, not stat-scaled." },
     "Great Impact": { "ultimateName": "Giant Impact", "multiplier": 5, "verified": true, "note": "Structural combine (like Stormbringer), not stat-scaled." },
     "Meisner Effect": {

@@ -4938,27 +4938,22 @@
         {
           "id": 181,
           "value": 35,
-          "text": "Increase the [Damage] of the following Magic by 〈35%〉."
+          "text": "Increase Fireball Damage by 35%"
         },
         {
-          "id": 321,
+          "id": 181,
           "value": 35,
           "text": "Increase Meteor Damage by 35%"
         },
         {
-          "id": 461,
+          "id": 181,
           "value": 35,
           "text": "Increase Incineration Damage by 35%"
         },
         {
-          "id": 581,
+          "id": 181,
           "value": 35,
           "text": "Increase Lava Zone Damage by 35%"
-        },
-        {
-          "id": 717,
-          "value": 35,
-          "text": null
         }
       ],
       "rarity": "Epic"
@@ -4975,27 +4970,22 @@
         {
           "id": 211,
           "value": 35,
-          "text": "Increase the [Damage] of the following Magic by 〈35%〉."
+          "text": "Increase Thunderstorm Damage by 35%"
         },
         {
-          "id": 421,
+          "id": 211,
           "value": 35,
           "text": "Increase Electric Shock Damage by 35%"
         },
         {
-          "id": 291,
+          "id": 211,
           "value": 35,
           "text": "Increase Electric Zone Damage by 35%"
         },
         {
-          "id": 601,
+          "id": 211,
           "value": 35,
           "text": "Increase Flash Shock Damage by 35%"
-        },
-        {
-          "id": 717,
-          "value": 35,
-          "text": null
         }
       ],
       "rarity": "Epic"
@@ -5012,27 +5002,22 @@
         {
           "id": 391,
           "value": 35,
-          "text": "Increase the [Damage] of the following Magic by 〈35%〉."
+          "text": "Increase Cyclone Damage by 35%"
         },
         {
-          "id": 511,
+          "id": 391,
           "value": 35,
           "text": "Increase Blizzard Damage by 35%"
         },
         {
-          "id": 251,
+          "id": 391,
           "value": 35,
           "text": "Increase Tsunami Damage by 35%"
         },
         {
-          "id": 371,
+          "id": 391,
           "value": 35,
           "text": "Increase Frost Nova Damage by 35%"
-        },
-        {
-          "id": 717,
-          "value": 35,
-          "text": null
         }
       ],
       "rarity": "Epic"
@@ -5049,27 +5034,22 @@
         {
           "id": 481,
           "value": 35,
-          "text": "Increase the [Damage] of the following Magic by 〈35%〉."
+          "text": "Increase Energy Bolt Damage by 35%"
         },
         {
-          "id": 531,
+          "id": 481,
           "value": 35,
           "text": "Increase Arcane Ray Damage by 35%"
         },
         {
-          "id": 271,
+          "id": 481,
           "value": 35,
           "text": "Increase Spirit Damage by 35%"
         },
         {
-          "id": 306,
+          "id": 481,
           "value": 35,
           "text": "Increase Satellite Damage by 35%"
-        },
-        {
-          "id": 717,
-          "value": 35,
-          "text": null
         }
       ],
       "rarity": "Epic"
@@ -5733,20 +5713,20 @@
         {
           "id": 485,
           "value": 1,
-          "text": "Increase the [number] of the following Magic by 〈1〉."
+          "text": "Increase the number of Energy Bolts by 1"
         },
         {
-          "id": 533,
+          "id": 485,
           "value": 1,
           "text": "Increase the number of Arcane Rays by 1"
         },
         {
-          "id": 273,
+          "id": 485,
           "value": 1,
           "text": "Increase the number of Spirits by 1"
         },
         {
-          "id": 308,
+          "id": 485,
           "value": 1,
           "text": "Increase the number of Satellites by 1"
         }
@@ -6901,27 +6881,22 @@
         {
           "id": 181,
           "value": 25,
-          "text": "Increase the [Damage] of the following Magic by 〈25%〉."
+          "text": "Increase Fireball Damage by 25%"
         },
         {
-          "id": 321,
+          "id": 181,
           "value": 25,
           "text": "Increase Meteor Damage by 25%"
         },
         {
-          "id": 461,
+          "id": 181,
           "value": 25,
           "text": "Increase Incineration Damage by 25%"
         },
         {
-          "id": 581,
+          "id": 181,
           "value": 25,
           "text": "Increase Lava Zone Damage by 25%"
-        },
-        {
-          "id": 717,
-          "value": 25,
-          "text": null
         }
       ]
     },
@@ -6937,27 +6912,22 @@
         {
           "id": 211,
           "value": 25,
-          "text": "Increase the [Damage] of the following Magic by 〈25%〉."
+          "text": "Increase Thunderstorm Damage by 25%"
         },
         {
-          "id": 421,
+          "id": 211,
           "value": 25,
           "text": "Increase Electric Shock Damage by 25%"
         },
         {
-          "id": 291,
+          "id": 211,
           "value": 25,
           "text": "Increase Electric Zone Damage by 25%"
         },
         {
-          "id": 601,
+          "id": 211,
           "value": 25,
           "text": "Increase Flash Shock Damage by 25%"
-        },
-        {
-          "id": 717,
-          "value": 25,
-          "text": null
         }
       ]
     },
@@ -6973,27 +6943,22 @@
         {
           "id": 391,
           "value": 25,
-          "text": "Increase the [Damage] of the following Magic by 〈25%〉."
+          "text": "Increase Cyclone Damage by 25%"
         },
         {
-          "id": 511,
+          "id": 391,
           "value": 25,
           "text": "Increase Blizzard Damage by 25%"
         },
         {
-          "id": 251,
+          "id": 391,
           "value": 25,
           "text": "Increase Tsunami Damage by 25%"
         },
         {
-          "id": 371,
+          "id": 391,
           "value": 25,
           "text": "Increase Frost Nova Damage by 25%"
-        },
-        {
-          "id": 717,
-          "value": 25,
-          "text": null
         }
       ]
     },
@@ -7009,27 +6974,22 @@
         {
           "id": 481,
           "value": 25,
-          "text": "Increase the [Damage] of the following Magic by 〈25%〉."
+          "text": "Increase Energy Bolt Damage by 25%"
         },
         {
-          "id": 531,
+          "id": 481,
           "value": 25,
           "text": "Increase Arcane Ray Damage by 25%"
         },
         {
-          "id": 271,
+          "id": 481,
           "value": 25,
           "text": "Increase Spirit Damage by 25%"
         },
         {
-          "id": 306,
+          "id": 481,
           "value": 25,
           "text": "Increase Satellite Damage by 25%"
-        },
-        {
-          "id": 717,
-          "value": 25,
-          "text": null
         }
       ]
     },
@@ -12450,14 +12410,14 @@
       "Hyperion": {
         "ultimateName": "Abaddon",
         "multiplier": 3.3,
-        "verified": "approximate",
-        "note": "Reported at '8 satellites'. Hyperion's own fusion bonus scales damage with Satellite size dynamically (not a fixed X), so 3.3x is applied directly on base damage rather than compounding with a separate fusion X — treat as approximate."
+        "verified": true,
+        "note": "Reported at '8 satellites'. Hyperion's own fusion bonus (Nuclear Fusion's 'Damage Multiplier +1 per Satellite', now implemented) DOES compound with this ultimate's 3.3x, not apply instead of it — confirmed exact: base 5 x 8 Satellites x 1.5 (Hyperion's own +50%) x 3.3 = 198, matches the real reported value exactly. An earlier version of this note assumed the fusion had nothing to compound with, since Nuclear Fusion's own mechanic hadn't been found in the data yet at the time."
       },
       "Avatar": {
         "ultimateName": "Equilibrium",
         "multiplier": 3.3,
-        "verified": "unusable",
-        "note": "Cloaking has no direct base damage in the Encyclopedia, so this can't be computed here."
+        "verified": true,
+        "note": "Primary spell is Magic Bolt, not Cloaking (an earlier version of this entry had the wrong spell, which made it look uncomputable and marked it 'unusable' — that flag skips applying the ultimate entirely, so this was silently inert. Fixed: base 5 x Avatar's own fusion 9.99X x 3.3 = 164.8, matches the real reported value (165) exactly."
       },
       "Heart of Lightning": {
         "ultimateName": "Arc",

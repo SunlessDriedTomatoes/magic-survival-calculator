@@ -12,8 +12,8 @@ const localStorageStub = { getItem: k => (k in store ? store[k] : null), setItem
 const sandbox = { GAMEDATA, ICON_MAP, ICON_DATA, document: documentStub, localStorage: localStorageStub, console, window: {} };
 vm.createContext(sandbox);
 const code = fs.readFileSync(appJsPath, 'utf8');
-vm.runInContext(code + '\nthis.__expose = { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX };', sandbox, { filename: 'app.js' });
-const { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX } = sandbox.__expose;
+vm.runInContext(code + '\nthis.__expose = { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX, computeSpellTotalCount };', sandbox, { filename: 'app.js' });
+const { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX, computeSpellTotalCount } = sandbox.__expose;
 
 function own(name) {
   const art = GAMEDATA.artifacts.find(a => a.name === name);
@@ -803,6 +803,86 @@ r = compute();
 const hyperionMdmgLine = r.ledger.mdmg.find(x => x.source.startsWith('Hyperion'));
 check('Hyperion\'s own "Damage Multiplier by 50%" now reaches mdmgPct (previously silently dropped)', hyperionMdmgLine ? hyperionMdmgLine.amount : NaN, 50);
 check('nonCrit assembles correctly: base x ATK x MDMG x xMultTotal', r.nonCrit, r.base * r.ATK * r.MDMG * r.xMultTotal, 0.01);
+
+// --- Mana Acquisition% only tracks the general stat that feeds Abyss's conversion — Lantern/
+// Mercury's "[Mana Orb] Acquisition" (currency drop rate) and Exorcism's "from killing enemies"
+// variant are both genuinely different, narrower stats, correctly excluded (not a bug — an earlier
+// pass here briefly included Lantern/Mercury on the wrong assumption they were the same stat;
+// reverted). ---
+reset();
+own('Lantern'); // "Increase [Mana Orb] Acquisition by 10%" — currency only, not the general stat
+r = compute();
+check('Lantern\'s "[Mana Orb] Acquisition" does NOT feed manaAcquisitionPct (different stat)', r.manaAcquisitionPct, 0);
+reset();
+own('Exorcism'); // "Increase Mana Acquisition FROM KILLING ENEMIES by 20%" — must stay excluded
+r = compute();
+check('Exorcism\'s narrower "from killing enemies" phrasing still correctly excluded', r.manaAcquisitionPct, 0);
+
+// --- Excalibur: unconditional +25% Additional Damage (confirmed via real gameplay — no HP%/crit/
+// timing gate, unlike most other Additional Damage effects in the dataset), applies to any spell
+// (unlike Robot, which is scoped to Electric Zone only). ---
+reset();
+own('Excalibur');
+state.selectedSpellId = 12; // Cyclone — arbitrary spell, confirming no scoping
+r = compute();
+check('Excalibur: additionalDamageMult = 1.25, unconditional across any spell', r.additionalDamageMult, 1.25);
+
+// --- "Following Magic" group relics (Cauldron/Lightning/Weather Controller/Mana Scepter/Mirror,
+// and their Special Passive counterparts): not a player-chosen dropdown — the raw effect data only
+// ever resolved 3 of the 4 named spells to real text (the 4th's own id has no template anywhere in
+// the dataset), so this was an extraction gap, not a design question. All 4 listed spells apply
+// simultaneously and unconditionally once owned, flowing through the normal classifyEffect pipeline
+// with zero special-casing needed in app.js — build_gamedata.js now expands the generic line using
+// the comma-separated spell list on the next description line. Verified across all 4 of Cauldron's
+// spells (Fireball/Meteor/Incineration/Lava Zone), not just one, since the fix has to work
+// uniformly across the whole list, not just the previously-broken 4th slot. ---
+reset();
+own('Cauldron');
+for (const [spellId, spellName] of [[2, 'Fireball'], [10, 'Meteor'], [15, 'Incineration'], [20, 'Lava Zone']]) {
+  state.selectedSpellId = spellId;
+  spellState(spellId).level = 0; // isolate from each spell's own max-level bonus
+  r = compute();
+  check('Cauldron: ' + spellName + ' gets +35% mdmgPct', r.mdmgPct, 35);
+}
+const energyBoltSpell = GAMEDATA.spells[16];
+const baseEnergyBoltCount = energyBoltSpell.base.number;
+reset();
+own('Mirror');
+const energyBoltCountWithMirror = computeSpellTotalCount(energyBoltSpell);
+check('Mirror: Energy Bolt (the previously-unresolved 4th slot) gets +1 count', energyBoltCountWithMirror, baseEnergyBoltCount + 1);
+
+// --- Avatar/Equilibrium: was marked verified:'unusable' in ultimates.json, which skips applying
+// the ultimate's multiplier entirely (see the `ult.verified === 'unusable'` check that filters
+// activeUltimates) — stale leftover from before Avatar's own spell/base-damage bug was fixed
+// (Cloaking has no base damage, but Avatar's real primary spell is Magic Bolt). Fixed; now applies
+// its confirmed 3.3x like any other verified ultimate. ---
+reset();
+state.classId = wizC.id; state.testSubjectId = wizT.id; state.classLevel = 4;
+const avatarFusion = GAMEDATA.fusions.find(f => f.name === 'Avatar');
+state.fusionIds = [avatarFusion.id];
+state.ultimatesOn[avatarFusion.id] = true;
+state.selectedSpellId = magicBoltSpell.id;
+spellState(magicBoltSpell.id).level = 0;
+r = compute();
+check('Avatar/Equilibrium now actually applies (was silently skipped via verified:"unusable")', r.activeUltimates.length, 1);
+check('Avatar/Equilibrium: xMultTotal = 32.967 (Avatar\'s own 9.99X fusion x 3.3 ult)', r.xMultTotal, 32.967, 0.01);
+
+// --- Shuriken: per-spell Critical Rate ("Increase Magic Bolt Critical Rate by 15%" / "Increase
+// Spirit Critical Rate by 15%") — a new stat scope, since the general critChancePct pool had no
+// concept of "only while viewing spell X" before this. Confirmed dataset-wide to be the only item
+// using this phrasing. Feeds the same critChancePct pool as the general form, additive on top of
+// it, not a separate pool. ---
+reset();
+own('Shuriken');
+state.selectedSpellId = magicBoltSpell.id;
+r = compute();
+check('Shuriken: Magic Bolt gets +15% critChancePct', r.critChancePct, 15);
+state.selectedSpellId = 3; // Spirit
+r = compute();
+check('Shuriken: Spirit gets +15% critChancePct', r.critChancePct, 15);
+state.selectedSpellId = 2; // Fireball — not one of Shuriken's two targeted spells
+r = compute();
+check('Shuriken: Fireball (untargeted) gets +0% critChancePct', r.critChancePct, 0);
 
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

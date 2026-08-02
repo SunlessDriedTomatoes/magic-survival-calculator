@@ -279,9 +279,12 @@ const AGI_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'AGI') || null;
 // dataset is conditional on live combat state this calculator has no model for (enemy HP%, crit/
 // non-crit, boss waves, survival time — e.g. Guillotine, Rose, Ballista, Sniper, Siege Hammer,
 // Brand, Butcher), so those stay unclassified/'other' rather than being applied unconditionally.
-// Robot is the one clean exception: a flat, always-on, deterministic per-character-level bonus with
-// no combat-state trigger, so it's the only one wired up here.
+// Robot and Excalibur are the two clean exceptions: flat, always-on, unconditional bonuses with no
+// combat-state trigger in their own text (Excalibur's own aura applies to "enemies within its
+// range" with no HP/crit/timing gate at all, confirmed against real gameplay), so those are the
+// only two wired up here.
 const ROBOT_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Robot') || null;
+const EXCALIBUR_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Excalibur') || null;
 // Transcendence: "For each Active Spell that reaches Max Level, All Magic Damage increases by
 // 15%" — a real, distinct AMD contribution, not just flavor text for Arbiter (the synergy that
 // requires owning Transcendence, among others — already implemented as Arbiter's own x1.25 late
@@ -799,6 +802,17 @@ function classifyEffect(effect, spellName) {
   // id fallback for edge cases).
   if (/^Increase Critical Strike Rate by [\d.]+%/.test(text)) return { kind: 'critChance', amount: effect.value };
   if (/^Increase Critical Strike Multiplier by [\d.]+%/.test(text)) return { kind: 'critMult', amount: effect.value };
+  // Spell-specific Critical Rate — e.g. Shuriken's "Increase Magic Bolt Critical Rate by 15%" /
+  // "Increase Spirit Critical Rate by 15%". Confirmed dataset-wide to be the only item using this
+  // phrasing (every other Critical Rate source is the general, spell-agnostic form above). Same
+  // dual-tracking shape as 'cooldown'/'cooldownAll' and per-spell mdmg — only counts while viewing
+  // the exact spell named, on top of the general critChance pool, not instead of it.
+  const critRateSpellMatch = text.match(/^Increase (.+?) Critical Rate by ([\d.]+)%/);
+  if (critRateSpellMatch) {
+    const [, target, amt] = critRateSpellMatch;
+    if (target === spellName) return { kind: 'critChance', amount: parseFloat(amt), target };
+    return { kind: 'other', label: text };
+  }
   // Fallback to id for effects whose text doesn't match one of the phrasings above — e.g. a
   // combined "Increase ATK, Critical Strike Rate, Movement Speed by N%" buff (only captured here
   // as an ATK contribution; the crit-rate and movement-speed portions of that one effect aren't
@@ -879,10 +893,14 @@ function classifyEffect(effect, spellName) {
   // rather than folded into the same additive pool.
   if (/^Increase Max HP by [\d.]+%/.test(text)) return { kind: 'maxHp', amount: effect.value };
   if (/^(Reduce|Decrease) Max HP by [\d.]+%/.test(text)) return { kind: 'maxHpReduction', amount: effect.value };
-  // Mana Acquisition% — general only. "Increase Mana Acquisition FROM KILLING ENEMIES by N%"
-  // (Exorcism) is a narrower, separate bonus that doesn't feed Abyss's conversion pool — excluded
-  // by construction, since the literal "by" here never immediately follows "Acquisition" for that
-  // phrasing ("Acquisition from killing enemies by", not "Acquisition by").
+  // Mana Acquisition% — general only, the stat that actually feeds Abyss's conversion. "Increase
+  // Mana Acquisition FROM KILLING ENEMIES by N%" (Exorcism) is a narrower, separate bonus excluded
+  // by construction (the literal "by" here never immediately follows "Acquisition" for that
+  // phrasing). Lantern/Mercury's "[Mana Orb] Acquisition" is a genuinely different, narrower stat
+  // too — it only affects how much Mana Orb *currency* drops, not the general Mana Acquisition
+  // Rate% that feeds Abyss/leveling — so it's correctly excluded here as well, not a bug (an
+  // earlier pass here briefly widened this regex to match it, on the wrong assumption that it was
+  // just a different wording of the same stat; reverted).
   if (/^Increase Mana Acquisition by [\d.]+%/.test(text)) return { kind: 'manaAcquisition', amount: effect.value };
   // Damage Taken% — multiplicative-per-source like Cooldown %. Same sign convention as cdMatch above
   // (Decrease = negative amount, Increase = positive): multiplicativePoolMult turns a negative total
@@ -1263,6 +1281,12 @@ function compute() {
   if (ROBOT_ARTIFACT && ownsArtifactByName('Robot') && spell.name === 'Electric Zone') {
     const pct = 0.5 * state.playerLevel;
     if (pct) additionalDamageLedger.push({ source: 'Robot (Relic, ' + state.playerLevel + ' character levels)', pct });
+  }
+  // Excalibur's own aura applies to every spell (no spell-name scoping, unlike Robot) — confirmed
+  // unconditional, not gated on any live combat state.
+  if (EXCALIBUR_ARTIFACT && ownsArtifactByName('Excalibur')) {
+    const pct = (EXCALIBUR_ARTIFACT.effects[0] && EXCALIBUR_ARTIFACT.effects[0].value) || 25;
+    additionalDamageLedger.push({ source: 'Excalibur (Relic, Aura)', pct });
   }
   let additionalDamageMult = 1;
   for (const a of additionalDamageLedger) additionalDamageMult *= (1 + a.pct / 100);
@@ -2246,7 +2270,7 @@ function renderResultsPane() {
   const ledgerSection = el('div', { class: 'section' });
   ledgerSection.appendChild(el('div', { class: 'section-title' }, 'Formula Breakdown'));
   ledgerSection.appendChild(row('Base (Encyclopedia)', fmt(r.base, 0)));
-  ledgerSection.appendChild(row('ATK (' + fmtSigned(r.atkPct) + '%)', fmt(r.ATK, 1), false, 'stat-atk'));
+  ledgerSection.appendChild(row('ATK (' + fmtSigned(r.atkPct) + (r.titanOwned ? ' x1.5' : '%') + ')', fmt(r.ATK, 1), false, 'stat-atk'));
   ledgerSection.appendChild(row('Amplification', 'x' + fmt(r.AMP, 2) + '  (' + fmtSigned(r.ampPct) + '%)', false, 'stat-amp'));
   ledgerSection.appendChild(row('Magic Damage (' + r.spell.name + ')', 'x' + fmt(r.MDMG, 2) + '  (' + fmtSigned(r.mdmgPct) + '%)', false, 'stat-amd'));
   ledgerSection.appendChild(row('Non-crit damage', fmt(r.nonCrit, 1), true));
@@ -2319,12 +2343,14 @@ function renderResultsPane() {
       el('span', { class: 'lv ' + line.cls }, line.tag + ' ' + fmtSigned(line.amount, 2) + '%'),
     ]));
   }
-  // Titan's Power shows the flat damage it adds on top of everything else, rather than a %, since
-  // it's a transform on ATK itself, not a contribution to one of the additive pools above.
+  // Titan's Power is a fixed 1.5x transform on bonus ATK, not a % contribution to one of the
+  // additive pools above — shown as a flat label rather than a computed damage delta, since the
+  // delta scales with the whole build and isn't a meaningful number on its own (see Formula
+  // Breakdown's ATK row above for how it actually factors into ATK).
   if (r.titanOwned) {
     sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk' }, "Titan's Power (ATK " + fmt(r.ATKPreTitan, 0) + ' → ' + fmt(r.ATK, 0) + ')'),
-      el('span', { class: 'lv' }, r.titanDelta != null ? '+' + fmt(r.titanDelta, 1) : '—'),
+      el('span', { class: 'lk' }, "Titan's Power"),
+      el('span', { class: 'lv' }, 'Bonus ATK x1.5'),
     ]));
   }
   // Nexus is no longer shown here — it's a normal contributor to the additive Magic Damage pool

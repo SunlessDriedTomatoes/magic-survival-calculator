@@ -11,6 +11,42 @@ function loadFile(name) {
 }
 const idMap = JSON.parse(fs.readFileSync(OUT + '/effect_id_map.json', 'utf8'));
 
+// A handful of items (Cauldron/Lightning/Weather Controller/Mana Scepter/Mirror, and their Special
+// Passive counterparts Lord of Fire/Stormy Clouds/Nature's Wrath/Energy Engineering) describe their
+// bonus generically ("Increase the [Damage] of the following Magic by N%") with the actual target
+// spells listed on the NEXT description line as a comma-separated list ("Fireball, Meteor,
+// Incineration, Lava Zone") — not a player choice; all four apply simultaneously and
+// unconditionally once owned. The raw effect slots only ever resolve 3 of the 4 spells to real
+// per-spell text (confirmed via effect_id_map.json: the 4th spell's own id, e.g. 717, has no
+// template anywhere in the dataset at all — genuinely unmapped, not just unresolved here). This
+// expands the generic line into one real per-spell effect for every spell named in the list,
+// replacing whatever partial/ambiguous effects were there before, so all of them correctly flow
+// through classifyEffect's normal per-spell matching with no further special-casing needed in
+// app.js.
+const FOLLOWING_MAGIC_DAMAGE_RE = /^Increase the \[Damage\] of the following Magic by 〈([\d.]+)%〉\.?$/;
+const FOLLOWING_MAGIC_NUMBER_RE = /^Increase the \[number\] of the following Magic by 〈([\d.]+)〉\.?$/;
+function expandFollowingMagicEffects(effects, descLines) {
+  if (!descLines[0] || !descLines[1]) return effects;
+  const dmgMatch = descLines[0].match(FOLLOWING_MAGIC_DAMAGE_RE);
+  const numMatch = descLines[0].match(FOLLOWING_MAGIC_NUMBER_RE);
+  if (!dmgMatch && !numMatch) return effects;
+  const spellNames = descLines[1].split(',').map(s => s.trim()).filter(Boolean);
+  if (spellNames.length < 2) return effects; // not actually a spell list
+  const value = parseFloat((dmgMatch || numMatch)[1]);
+  const genericId = effects[0] ? effects[0].id : null;
+  const rebuilt = spellNames.map(name => ({
+    id: genericId,
+    value,
+    text: dmgMatch ? `Increase ${name} Damage by ${value}%` : `Increase the number of ${name}s by ${value}`,
+  }));
+  const kept = effects.filter(e => {
+    if (!e.text) return false; // the unresolved null-text filler (e.g. id 717)
+    if (e.text === descLines[0]) return false; // the generic line itself
+    return !spellNames.some(name => e.text.includes(name)); // drop already-correct duplicates
+  });
+  return [...kept, ...rebuilt];
+}
+
 function getEffectsGeneric(header, row, maxPairs) {
   const effects = [];
   for (let k = 1; k <= maxPairs; k++) {
@@ -276,6 +312,7 @@ for (const row of aData) {
   // left in, they can wrongly steal a description fragment meant for another effect (verified:
   // this broke Fast Casting/Snipe's post-max value extraction below).
   let effects = labelEffects(getEffectsGeneric(aHeader, row, 9).filter(e => e.id > 0), descLines);
+  effects = expandFollowingMagicEffects(effects, descLines);
   // A handful of items (verified: Research "Support"/Mana Orb Currency) have their entire real
   // value living in 특수값01 with every one of the normal effectID/value slots empty/noise — the
   // row's own description still has a "□"-style live-fill placeholder, so there's a real number
