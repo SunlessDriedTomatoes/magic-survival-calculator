@@ -13296,6 +13296,19 @@ const WIZARDS_HAT_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Wizard’s
 const SPACE_WARP_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Cloaking') || null;
 const SPACE_WARP_EVOLUTION = SPACE_WARP_SPELL ? SPACE_WARP_SPELL.evolutions.find(e => e.name === 'Space Warp') || null : null;
 
+// Nuclear Fusion (Satellite's own evolution, required by Hyperion): "Increase Damage Multiplier by
+// 1 for each Satellite" — confirmed against a real reported value (Hyperion/Abaddon, 8 Satellites:
+// 5 base x 8 x 1.5 [Hyperion's own +50%, see the Damage-Multiplier-phrasing fix in classifyEffect]
+// x 3.3 Abaddon ult = 198, matching exactly). Unlike Telekinetic Sword/Plasma Ray's own "+1 per X"
+// terms (which use a 1+stacks baseline since their own count can legitimately be 0 in normal play,
+// e.g. zero Cooldown Reduction), Satellite's own count is never 0 while viewing its damage (base
+// count is always >= 1), so this reads as the count directly, not 1+count — same reasoning applies
+// to why 1+8=9 does NOT reproduce 198 but plain 8 does. Applies whenever the evolution itself is
+// picked+unlocked, independent of whether Hyperion specifically is also selected — same pattern as
+// Space Warp above (an evolution's own text describing its own behavior, not gated on a fusion).
+const SATELLITE_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Satellite') || null;
+const NUCLEAR_FUSION_EVOLUTION = SATELLITE_SPELL ? SATELLITE_SPELL.evolutions.find(e => e.name === 'Nuclear Fusion') || null : null;
+
 // Photon Explosion (Shield fusion): "[Damage] and [Size] of Shields increase by 33% per Shield" and
 // "[Damage] increases in relation to [All Magic Size Increase]" are both pure description text with
 // no structured {id,value} effect behind them — same situation as Space Warp above. The per-Shield
@@ -13372,6 +13385,18 @@ const LAVA_ZONE_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Lav
 // damage (no fabricated multiplier); see the UI note wired to SUPER_CYCLONE_FUSION for the
 // player-facing caveat.
 const SUPER_CYCLONE_FUSION = GAMEDATA.fusions.find(f => f.name === 'Super Cyclone') || null;
+
+// Inferno (Incineration fusion): "increases Max Multiplier" up to "Damage X30, Size X2" — same
+// situation as Super Cyclone above, a stacking-over-time mechanic with a known cap but no stated
+// ramp rate anywhere in the mined data. Checked further than Super Cyclone was: Lava Zone's own
+// "Melt" evolution has the identical "Max Multiplier" mechanic and states its ramp rate directly in
+// text ("5% per hit... Max Multiplier: 30%"), confirming this game does sometimes give the rate in
+// the extracted text when it has one — Incineration's own "Flamestrike" evolution and Inferno's own
+// fusion text never do, and neither the decompiled code nor the internal function-name mappings
+// available in this project contain the actual per-spell cast/tick logic that would reveal it. So
+// this is a genuine data gap, not an unread column — the number shown is the initial/unstacked
+// damage (no fabricated ramp), same treatment as Super Cyclone.
+const INFERNO_FUSION = GAMEDATA.fusions.find(f => f.name === 'Inferno') || null;
 
 // ===================== Stat-conversion relics (Oculus/Carnival/Gaia/Abyss/Accelerator/Aegis/
 // Akashic Record/Magic Wand/Otherworldly Tentacle) =====================
@@ -13763,8 +13788,11 @@ function classifyEffect(effect, spellName) {
   if (effect.id === ATK_PERCENT_ID) return { kind: 'atk', amount: effect.value };
   if (effect.id === AMP_PERCENT_ID) return { kind: 'amp', amount: effect.value };
 
-  // e.g. "Increase Magic Bolt Damage by 50%" / "Decrease Magic Bolt Damage by 25%"
-  const pctMatch = text.match(/^(Increase|Decrease) (.+?) Damage by ([\d.]+)%/);
+  // e.g. "Increase Magic Bolt Damage by 50%" / "Decrease Magic Bolt Damage by 25%" — the optional
+  // " Multiplier" handles Hyperion's own oddly-worded "Increase Satellite Damage Multiplier by
+  // 50%" (confirmed dataset-wide to be the only place this exact phrasing occurs), which otherwise
+  // silently fell through to 'other' and got dropped entirely.
+  const pctMatch = text.match(/^(Increase|Decrease) (.+?) Damage(?: Multiplier)? by ([\d.]+)%/);
   if (pctMatch) {
     const [, dir, target, amt] = pctMatch;
     const sign = dir === 'Increase' ? 1 : -1;
@@ -14521,6 +14549,14 @@ function compute() {
   // multiplied in directly here rather than pushed into xMults, which would silently no-op this late.
   if (spaceWarpDurationMult !== 1) xMultTotal *= spaceWarpDurationMult;
 
+  // Nuclear Fusion: see NUCLEAR_FUSION_EVOLUTION above for the confirming real-data calculation —
+  // same gating pattern as Space Warp (evolution picked+unlocked, independent of any fusion).
+  const nuclearFusionActive = !!(NUCLEAR_FUSION_EVOLUTION && spell.name === 'Satellite' &&
+    spellState(state.selectedSpellId).evolutions.has(NUCLEAR_FUSION_EVOLUTION.id) &&
+    spellEvolutionTierUnlocked(spell, NUCLEAR_FUSION_EVOLUTION.tier, spellState(state.selectedSpellId).level));
+  const nuclearFusionMult = nuclearFusionActive ? computeSpellTotalCount(SATELLITE_SPELL) : 1;
+  if (nuclearFusionMult !== 1) xMultTotal *= nuclearFusionMult;
+
   // Photon Explosion: "[Damage] increases in relation to [All Magic Size Increase]" — unlike
   // Furnace/Space Warp below, its own text names "All Magic Size Increase" specifically, not
   // Shield's own Size, so this reads the already-tracked All-Magic-wide sizePct pool directly
@@ -14552,6 +14588,10 @@ function compute() {
   // Super Cyclone: no damage math here (see SUPER_CYCLONE_FUSION above) — just a flag for the UI
   // caveat note, true only while actually viewing Cyclone with the fusion active.
   const superCycloneActive = !!(SUPER_CYCLONE_FUSION && spell.name === 'Cyclone' && state.fusionIds.includes(SUPER_CYCLONE_FUSION.id));
+
+  // Inferno: same treatment as Super Cyclone above (see INFERNO_FUSION) — no damage math, just a
+  // flag for the UI caveat note.
+  const infernoActive = !!(INFERNO_FUSION && spell.name === 'Incineration' && state.fusionIds.includes(INFERNO_FUSION.id));
 
   // Ultimates — only the ones belonging to a fusion whose parent spell is the one currently
   // being viewed actually apply (a Meteor ultimate shouldn't multiply Magic Bolt's damage).
@@ -14599,8 +14639,9 @@ function compute() {
     damageReductionPct, oculusOwned, carnivalOwned, gaiaOwned, abyssOwned, acceleratorOwned, aegisOwned,
     akashicRecordOwned, magicWandOwned, otherworldlyTentacleOwned,
     spaceWarpEvoActive, cloakingDurationBonusPct, spaceWarpDurationMult, durationSpellPct,
+    nuclearFusionActive, nuclearFusionMult,
     photonExplosionActive, photonExplosionSizeMult, furnaceActive, furnaceDurationMult, plasmaRayActive, plasmaRayMult, plasmaRayRayCount,
-    telekineticSwordActive, telekineticSwordStacks, telekineticSwordMult, superCycloneActive,
+    telekineticSwordActive, telekineticSwordStacks, telekineticSwordMult, superCycloneActive, infernoActive,
   };
 }
 
@@ -14926,6 +14967,7 @@ function renderLeftPane() {
         el('div', { class: 'pi-name' }, f.name + (f.ultimateName && f.ultimateName !== '`' ? ' → ' + f.ultimateName : '')),
         el('div', { class: 'pi-desc' }, descriptionNodes(f.description, f.effects)),
         f.name === 'Super Cyclone' ? el('div', { class: 'note' }, 'Damage shown is the initial/spawn value — this fusion\'s own Damage Multiplier scales up the longer a Cyclone persists, but the exact rate isn\'t in the extracted data, so it isn\'t included in the number below.') : null,
+        f.name === 'Inferno' ? el('div', { class: 'note' }, 'Damage shown is the initial/unstacked value — this fusion\'s own Max Multiplier ramps up toward Damage X30 (Size X2) the more Incineration is cast, but the exact rate isn\'t in the extracted data, so it isn\'t included in the number below.') : null,
       ]),
     ]);
     fusionList.appendChild(row);
@@ -15218,6 +15260,9 @@ function renderResultsPane() {
   }
   if (r.superCycloneActive) {
     pane.appendChild(el('div', { class: 'note', style: 'padding:0 4px;' }, 'This is the initial/spawn damage. Super Cyclone\'s own Damage Multiplier increases the longer a Cyclone persists, but the exact rate isn\'t in the extracted data, so it isn\'t reflected above.'));
+  }
+  if (r.infernoActive) {
+    pane.appendChild(el('div', { class: 'note', style: 'padding:0 4px;' }, 'This is the initial/unstacked damage. Inferno\'s own Max Multiplier ramps up toward Damage X30 (Size X2) the more Incineration is cast, but the exact rate isn\'t in the extracted data, so it isn\'t reflected above.'));
   }
 
   // Active synergies (auto-triggered by owned artifacts) — damage-irrelevant ones (pure utility/QoL,

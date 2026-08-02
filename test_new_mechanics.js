@@ -12,8 +12,8 @@ const localStorageStub = { getItem: k => (k in store ? store[k] : null), setItem
 const sandbox = { GAMEDATA, ICON_MAP, ICON_DATA, document: documentStub, localStorage: localStorageStub, console, window: {} };
 vm.createContext(sandbox);
 const code = fs.readFileSync(appJsPath, 'utf8');
-vm.runInContext(code + '\nthis.__expose = { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate };', sandbox, { filename: 'app.js' });
-const { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate } = sandbox.__expose;
+vm.runInContext(code + '\nthis.__expose = { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX };', sandbox, { filename: 'app.js' });
+const { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX } = sandbox.__expose;
 
 function own(name) {
   const art = GAMEDATA.artifacts.find(a => a.name === name);
@@ -24,6 +24,16 @@ function ownPassive(name, count) {
   const p = GAMEDATA.passives.find(x => x.name === name);
   if (!p) throw new Error('passive not found: ' + name);
   state.bonusSelections[bonusKey({ ...p, category: 'Passive' })] = count;
+}
+function ownResearch(name, count) {
+  const r = GAMEDATA.research.find(x => x.name === name);
+  if (!r) throw new Error('research not found: ' + name);
+  state.bonusSelections[bonusKey({ ...r, category: 'Research' })] = count;
+}
+function ownPostMax(name, count) {
+  const p = PASSIVES_POST_MAX.find(x => x.name === name);
+  if (!p) throw new Error('post-max passive not found: ' + name);
+  state.bonusSelections[bonusKey({ ...p, category: 'Passive (Post-Max)' })] = count;
 }
 function reset() {
   state.classId = null; state.testSubjectId = null; state.unlockedTestSubjectIds = []; state.maxedClassIds = [];
@@ -249,6 +259,21 @@ state.selectedSpellId = 1; // Magic Bolt — different spell selected
 r = compute();
 check('Super Cyclone: superCycloneActive = false while viewing a different spell', r.superCycloneActive, false);
 
+// --- Inferno: same treatment as Super Cyclone — ramp rate isn't in the extracted data (confirmed
+// by comparison against Lava Zone's own "Melt" evolution, which has the identical "Max Multiplier"
+// mechanic and does state its rate directly in text; Incineration/Inferno's own text never does),
+// so just confirm the UI-note flag is scoped correctly. ---
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Inferno').id];
+state.selectedSpellId = Object.values(GAMEDATA.spells).find(s => s.name === 'Incineration').id;
+r = compute();
+check('Inferno: infernoActive = true while viewing Incineration with the fusion on', r.infernoActive, true);
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Inferno').id];
+state.selectedSpellId = 1; // Magic Bolt — different spell selected
+r = compute();
+check('Inferno: infernoActive = false while viewing a different spell', r.infernoActive, false);
+
 // --- Furnace: Lava Zone's own Duration% (All-Magic-wide + Lava-Zone-specific) scales Damage 1:1,
 // same pattern as Space Warp. Furnace's own fusion effect grants "+30% Lava Zone Duration". ---
 reset();
@@ -398,6 +423,15 @@ state.fusionIds = [26]; // Overmind
 r = compute();
 check('Overmind active with multiple spells invested', r.overmindActive, true);
 check('Overmind AMP = 1.5 x totalLevels (1.5x16=24) across the whole multi-spell build', r.ampPct, 24);
+// DEM needs Overmind + one other fusion — neither alone is sufficient. Migrated from the removed
+// test_multifusion.js (which checked this via its own reimplementation of the availability logic,
+// not the real function); these two use the real isDeusExMachinaAvailable via r.demActive instead.
+state.fusionIds = [26, 60]; // Overmind + DEM, no 3rd fusion
+r = compute();
+check('DEM not active with just Overmind + DEM selected (no 3rd fusion)', r.demActive, false);
+state.fusionIds = [60, 5]; // DEM + War Climate, no Overmind
+r = compute();
+check('DEM not active without Overmind, regardless of other fusions', r.demActive, false);
 state.fusionIds = [26, 60, 5]; // Overmind + DEM + a filler 3rd fusion (DEM needs Overmind + one other)
 r = compute();
 check('DEM active alongside Overmind', r.demActive, true);
@@ -715,6 +749,60 @@ check('Enchant Lv2, slot 2 = Fireball: mdmgPct = 50 (Fireball\'s own +50%, Magic
 state.selectedSpellId = magicBoltSpell.id;
 r = compute();
 check('Enchant Lv2, viewing Magic Bolt (slot 1): mdmgPct = 50 (Fireball\'s slot has no effect here)', r.mdmgPct, 50);
+
+// --- Titan's Power: not a flat x1.5 on the total — per community-reported testing, it transforms
+// ATK itself ("take the amount of ATK in your stat screen before Titan, subtract 100, x1.5, add
+// the 100 back"), so 100 ATK is an untouched baseline and only the portion above it is amplified.
+// Migrated from the old test_titan_nexus.js (removed — this was its only coverage not already
+// duplicated elsewhere; Nexus's own behavior is covered by the additive-pool tests above). ---
+reset();
+spellState(magicBoltSpell.id).level = magicBoltSpell.maxLevel; // mdmgPct=100, MDMG=2.0
+own('ASI'); // +30% ATK -> ATKPreTitan = 100 x 1.3 = 130
+r = compute();
+check('Titan baseline: ATKPreTitan = 130 (ASI alone, no Titan yet)', r.ATKPreTitan, 130);
+own("Titan's Power");
+r = compute();
+check('Titan: ATKPreTitan stays 130 (unaffected by Titan itself)', r.ATKPreTitan, 130);
+check('Titan: ATK = 145 (100 + (130-100) x 1.5, not a flat x1.5 on the whole 130)', r.ATK, 145);
+check('Titan: nonCrit = 1450 (base 5 x ATK 145 x MDMG 2.0)', r.nonCrit, 1450);
+check('Titan: titanDelta = 150 (5 x MDMG 2.0 x (145-130))', r.titanDelta, 150);
+
+// --- Research and Passive (Post-Max) categories actually wire into the damage calc — the one
+// thing test_all_tabs_wiring.js covered that nothing else here touched. Migrated from that file
+// (removed) rather than left as its own separate console.log-only script. ---
+reset();
+own('ASI'); // +30% ATK
+ownResearch('Intelligence', 1); // +5% ATK per point, 1 point
+ownPassive('Intelligence', 2); // +10% ATK per level, x2 levels = 20
+ownPostMax('Intelligence', 1); // +3% ATK per level (post-max tier), x1 level
+r = compute();
+check('Research + Passive + Passive (Post-Max) all wire into atkPct: 30 (ASI) + 5 (Research) + 20 (Passive x2) + 3 (Post-Max x1) = 58', r.atkPct, 58);
+check('ATK reflects the combined atkPct', r.ATK, 100 * 1.58);
+
+// --- Hyperion / Nuclear Fusion: two real bugs found via wiki cross-referencing.
+// (1) classifyEffect's mdmg regex required "Damage by N%" exactly, but Hyperion's own fusion
+// effect is worded "Increase Satellite Damage MULTIPLIER by 50%" — silently fell through to
+// 'other' and was completely dropped. (2) Nuclear Fusion (Satellite's own evolution, a Hyperion
+// prerequisite) grants "Increase Damage Multiplier by 1 for each Satellite" — unlike Telekinetic
+// Sword/Plasma Ray's "+1 per X" terms (1+stacks, since their own count can legitimately be 0), this
+// reads as the count directly (Satellite's own count is never 0 while viewing its damage). Both
+// confirmed together against a real reported value: Hyperion/Abaddon, 8 Satellites: 5 base x 8 x
+// 1.5 (Hyperion's 50%) x 3.3 (Abaddon ult) = 198, matching exactly — 1+8=9 does NOT reproduce it. ---
+reset();
+const satelliteSpell = Object.values(GAMEDATA.spells).find(s => s.name === 'Satellite');
+const nuclearFusionEvo = satelliteSpell.evolutions.find(e => e.name === 'Nuclear Fusion');
+spellState(satelliteSpell.id).level = satelliteSpell.maxLevel;
+spellState(satelliteSpell.id).evolutions.add(nuclearFusionEvo.id);
+state.selectedSpellId = satelliteSpell.id;
+r = compute();
+check('Nuclear Fusion active once picked+unlocked (no fusion required)', r.nuclearFusionActive, true);
+check('Nuclear Fusion mult = 6 (Satellite\'s own total count: base 1 + 5 level-up grants), not 7 (1+count)', r.nuclearFusionMult, 6);
+const hyperionFusion = GAMEDATA.fusions.find(f => f.name === 'Hyperion');
+state.fusionIds = [hyperionFusion.id];
+r = compute();
+const hyperionMdmgLine = r.ledger.mdmg.find(x => x.source.startsWith('Hyperion'));
+check('Hyperion\'s own "Damage Multiplier by 50%" now reaches mdmgPct (previously silently dropped)', hyperionMdmgLine ? hyperionMdmgLine.amount : NaN, 50);
+check('nonCrit assembles correctly: base x ATK x MDMG x xMultTotal', r.nonCrit, r.base * r.ATK * r.MDMG * r.xMultTotal, 0.01);
 
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);
