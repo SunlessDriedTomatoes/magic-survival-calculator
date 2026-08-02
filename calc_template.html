@@ -137,9 +137,6 @@
     padding: 9px 16px; cursor: pointer; white-space: nowrap;
   }
   #pwaInstallBtn:hover { background: var(--accent-strong); }
-  #pwaFirefoxHint {
-    display: none; font-size: 12px; color: var(--text-dim); max-width: 260px; text-align: right;
-  }
 
   /* ---------- Layout ---------- */
   .workbench {
@@ -448,7 +445,6 @@
     <span class="sub">Damage Ledger</span>
   </div>
   <button id="pwaInstallBtn" type="button">Install App</button>
-  <div id="pwaFirefoxHint">Firefox: use the "Add tab to Taskbar" icon in the address bar to install.</div>
 </div>
 
 <div class="tabbar" id="tabbar"></div>
@@ -478,7 +474,6 @@ __APP_JS__
   const alreadyInstalled = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   if (!alreadyInstalled) {
     const installBtn = document.getElementById('pwaInstallBtn');
-    const firefoxHint = document.getElementById('pwaFirefoxHint');
     let deferredPrompt = null;
     // Fires in Chrome/Edge/Chromium browsers when the site meets install criteria — gives us a real,
     // one-click custom button instead of relying on the user finding the small address-bar icon.
@@ -495,13 +490,5 @@ __APP_JS__
       installBtn.style.display = 'none';
     });
     window.addEventListener('appinstalled', () => { installBtn.style.display = 'none'; });
-    // Firefox doesn't fire beforeinstallprompt at all (its Taskbar Tabs feature has no equivalent JS
-    // API) — if neither that event nor an install has happened shortly after load, point Firefox
-    // users at the manual address-bar button instead of showing nothing.
-    setTimeout(() => {
-      if (!deferredPrompt && installBtn.style.display !== 'inline-flex' && navigator.userAgent.includes('Firefox')) {
-        firefoxHint.style.display = 'block';
-      }
-    }, 2500);
   }
 </script>

@@ -1,8 +1,8 @@
 ---
 title: "10. Test PC install via Chrome/Edge \"Install\" button (you)"
-lane: todo
+lane: done
 created: 2026-08-01T05:09:00.000Z
-updated: 2026-08-01T05:09:00.000Z
+updated: 2026-08-02T01:15:00.000Z
 description: Your action — visit the live URL, click Install.
 ---
 
