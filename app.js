@@ -1,26 +1,17 @@
 // ===================== State =====================
-// Class/Test Subject default to "Wizard" (ids 1/41) per your request — arbitrary starting point,
-// not a claim that Wizard is the "correct" default in any mechanical sense. Declared before
-// `state` below since `const` bindings aren't usable until their own line runs (unlike hoisted
-// `function` declarations) — defaultState() is called immediately, so these must come first.
-const DEFAULT_CLASS_ID = 1;
-const DEFAULT_TEST_SUBJECT_ID = 41;
-// Fixed, not player-editable — nothing in the extracted data suggests it scales with character
-// level, and this is the same reference value Titan's Power's own formula anchors to ("subtract
-// 100 from your stat-screen ATK..."). Everything beyond this comes from the atkPct bonus pool,
-// which already auto-aggregates every selected source.
+// Declared before `state` below since `const` bindings aren't usable until their own line runs
+// (unlike hoisted `function` declarations), and defaultState() is called immediately — so these
+// must come first.
+const DEFAULT_CLASS_ID = 1; // Wizard
+const DEFAULT_TEST_SUBJECT_ID = 41; // Wizard
+// Not player-editable. Same reference value Titan's Power's own formula anchors to ("subtract 100
+// from your stat-screen ATK..."). Everything beyond this comes from the atkPct bonus pool, which
+// already aggregates every selected source.
 const PLAYER_BASE_ATK = 100;
-// Fixed, confirmed base values with zero bonuses from class/test subject/research/anything else
-// during a run. Base crit chance corrected from an initial 5% to 3% — reconciled against a real
-// observation of 7% total with all classes maxed: Magician is the only School class (+3%) and the
-// only Test Subject (+1%) with a crit-related "(All Classes)" bonus, so 7 - 3 - 1 = 3 exactly,
-// with no other source involved.
 const PLAYER_BASE_CRIT_CHANCE = 3;
 const PLAYER_BASE_CRIT_MULT = 200;
-// Confirmed base values, same "fixed reference point the bonus pools build on top of" role as
-// PLAYER_BASE_ATK — Max HP is an absolute point value (not a %-relative stat like ATK/AMP/MDMG),
-// needed for Gaia's "+3% ATK per 20 Max HP" to be computable at all. Move Speed likewise needed for
-// Accelerator's "CDR per Movement Speed Increase" conversion.
+// Absolute point values (not %-relative like ATK/AMP/MDMG). Max HP feeds Gaia's "+3% ATK per 20
+// Max HP"; Move Speed feeds Accelerator's "CDR per Movement Speed Increase" conversion.
 const PLAYER_BASE_MAX_HP = 200;
 const PLAYER_BASE_MOVE_SPEED = 100;
 
