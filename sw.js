@@ -1,7 +1,7 @@
 // Network-first, cache-fallback: always serves the latest deployed version while online (so a
 // pushed fix shows up immediately, no stale-cache lag), and falls back to the last cached copy
 // when offline. Bump CACHE_NAME on any deploy that should force-evict old cached responses.
-const CACHE_NAME = 'magic-survival-calc-v1';
+const CACHE_NAME = 'magic-survival-calc-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -25,7 +25,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    fetch(event.request)
+    // { cache: 'no-store' } is required here, not optional — without it, a plain fetch() can be
+    // silently satisfied by the browser's own HTTP cache (honoring GitHub Pages' Cache-Control
+    // headers) instead of actually reaching the server, which defeats "network-first" entirely.
+    // Confirmed live: a deployed change didn't show up in an installed PWA until this was added.
+    fetch(event.request, { cache: 'no-store' })
       .then((response) => {
         const clone = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
