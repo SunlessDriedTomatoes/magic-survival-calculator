@@ -98,13 +98,13 @@ function labelEffects(effects, descLines) {
 }
 
 // A raw row can carry the same resolved effect text more than once — sometimes genuinely (e.g.
-// Wizard's two separate "Magic Bolt Lv+1" grants, confirmed via in-game screenshot: the description
-// itself mentions "Magic Bolt Lv +1" twice, once in the bracketed line-1 marker and once again as
-// its own line 2), sometimes as a pure extraction artifact (Bishop's "Increase the maximum number
-// of Shields by 1" appears twice in effects but only once in the description — confirmed via
-// screenshot the game only grants it once; one of the two raw columns is a redundant encoding of
-// the same single bonus, not a second grant). The description text itself is the ground truth for
-// how many times a bonus is really granted, so this trims each same-text effect group down to at
+// Wizard's two separate "Magic Bolt Lv+1" grants: the description itself mentions "Magic Bolt
+// Lv +1" twice, once in the bracketed line-1 marker and once again as its own line 2), sometimes
+// as a pure extraction artifact (Bishop's "Increase the maximum number of Shields by 1" appears
+// twice in effects but only once in the description — the game only grants it once; one of the two
+// raw columns is a redundant encoding of the same single bonus, not a second grant). The
+// description text itself is the ground truth for how many times a bonus is really granted, so
+// this trims each same-text effect group down to at
 // most that many occurrences, dropping the extras (kept in raw row order, so the reliably-matched
 // ones — resolved from the row's own text rather than a generic id template — are kept first).
 function trimEffectDuplicates(effects, descLines) {

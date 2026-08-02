@@ -13228,8 +13228,7 @@ function resolveDisplayText(text) {
 // Classes/Test Subjects level up independently in-game (currency-purchased) and unlock their
 // listed bonus lines progressively — description line 1 (always a compound "X Lv+1 @ ...per
 // character-level" flavor line) and line 2 both unlock at level 1, then each subsequent line
-// unlocks one level later. Verified directly against in-game screenshots for School classes
-// (confirmed 4 levels total; Wizard at level 1 shows lines 1-2 active, at level 3 shows 1-4).
+// unlocks one level later (School classes have 4 levels total).
 // The source data doesn't label which description line a given structured effect belongs to, so
 // this finds it by checking which line's resolved text contains the effect's own resolved text —
 // same matching approach already used for evolutions (describeLineNode).
@@ -13251,11 +13250,10 @@ function classEffectUnlockLevel(cls, effect) {
 // No text-based deduping here — that was tried and reverted. It looked reasonable for Bishop's
 // literal duplicate ("Increase the maximum number of Shields by 1" appearing under two different
 // effect ids), but it also silently collapsed Wizard's two textually-identical-after-cleanup but
-// genuinely separate "Magic Bolt Lv+1" grants down to one, hiding a real bonus the in-game tooltip
-// clearly shows as two active lines at level 1 (confirmed against a screenshot). Since neither case
-// maps to a tracked damage/stat bucket anyway (both fall through classifyEffect to 'other'), the
-// safer default is to show everything the data actually contains rather than guess which
-// same-text pairs are "real" duplicates.
+// genuinely separate "Magic Bolt Lv+1" grants down to one, hiding a real bonus that's actually two
+// active lines at level 1. Since neither case maps to a tracked damage/stat bucket anyway (both
+// fall through classifyEffect to 'other'), the safer default is to show everything the data
+// actually contains rather than guess which same-text pairs are "real" duplicates.
 function unlockedClassEffects(cls, level) {
   return cls.effects.filter(eff => classEffectUnlockLevel(cls, eff) <= level);
 }
@@ -13883,8 +13881,7 @@ function compute() {
     // near-identical +50% text entries (one from description line 1, one from line 4) that both
     // survive classEffectUnlockLevel's text-matching and both get summed here — unconfirmed whether
     // that's a real double grant (like Wizard's two genuine Magic Bolt Lv+1 lines) or a single bonus
-    // restated, so this may currently double-count Archmage specifically. Flagged, not yet verified
-    // against a screenshot.
+    // restated, so this may currently double-count Archmage specifically.
     for (const eff of unlockedClassEffects(ARCHMAGE_CLASS, state.classLevel)) {
       if (/Combination Magic\]? Damage/.test(eff.text || '')) {
         comboDamagePct += eff.value;
