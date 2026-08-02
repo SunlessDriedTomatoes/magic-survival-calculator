@@ -1,0 +1,466 @@
+<meta charset="UTF-8" />
+<title>Magic Survival — Damage Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#15131f" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<style>
+  :root {
+    --bg: #15131f;
+    --surface: #1d1a2b;
+    --surface-2: #262238;
+    --surface-3: #2f2a44;
+    --border: #362f4d;
+    --border-soft: #2a2539;
+    --text: #eae6f5;
+    --text-dim: #a49dbe;
+    --text-faint: #756f8e;
+    --accent: #d9a441;
+    --accent-soft: rgba(217, 164, 65, 0.14);
+    --accent-strong: #f0bc5e;
+    --crit: #e2604f;
+    --crit-soft: rgba(226, 96, 79, 0.14);
+    --buff: #5fb88f;
+    --buff-soft: rgba(95, 184, 143, 0.12);
+    --debuff: #b46a8f;
+    /* Sampled (by eye, not pixel-exact) from the in-game character stat screen's icon colors —
+       note the game itself swaps the intuitive pairing: the ATK icon reads blue and the All Magic
+       Damage icon reads green, so those two are deliberately crossed here to match. */
+    --stat-atk: #4cd964;
+    --stat-amp: #d954c9;
+    --stat-amd: #2dc7db;
+    --stat-crit: #f5a623;
+    --stat-combo: #8b7cf6;
+    --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f2ea;
+    --surface: #ffffff;
+    --surface-2: #f0ecdf;
+    --surface-3: #e7e1cf;
+    --border: #d8d0b8;
+    --border-soft: #e3ddc9;
+    --text: #241f30;
+    --text-dim: #5c5570;
+    --text-faint: #8b849e;
+    --accent: #a97418;
+    --accent-soft: rgba(169, 116, 24, 0.12);
+    --accent-strong: #8a5e12;
+    --crit: #c14632;
+    --crit-soft: rgba(193, 70, 50, 0.1);
+    --buff: #2f7d5c;
+    --buff-soft: rgba(47, 125, 92, 0.1);
+    --debuff: #96406b;
+    --stat-atk: #2e9e47;
+    --stat-amp: #a83a9c;
+    --stat-amd: #1590a1;
+    --stat-crit: #b8760f;
+    --stat-combo: #5f4fd1;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f5f2ea;
+      --surface: #ffffff;
+      --surface-2: #f0ecdf;
+      --surface-3: #e7e1cf;
+      --border: #d8d0b8;
+      --border-soft: #e3ddc9;
+      --text: #241f30;
+      --text-dim: #5c5570;
+      --text-faint: #8b849e;
+      --accent: #a97418;
+      --accent-soft: rgba(169, 116, 24, 0.12);
+      --accent-strong: #8a5e12;
+      --crit: #c14632;
+      --crit-soft: rgba(193, 70, 50, 0.1);
+      --buff: #2f7d5c;
+      --buff-soft: rgba(47, 125, 92, 0.1);
+      --debuff: #96406b;
+      --stat-atk: #2e9e47;
+      --stat-amp: #a83a9c;
+      --stat-amd: #1590a1;
+      --stat-crit: #b8760f;
+      --stat-combo: #5f4fd1;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  body { max-width: 100%; overflow-x: hidden; }
+
+  ::selection { background: var(--accent-soft); }
+
+  a { color: var(--accent); }
+
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; }
+
+  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  /* Matches the in-game character stat screen's color-coding for these four stats. */
+  .stat-atk { color: var(--stat-atk); }
+  .stat-amp { color: var(--stat-amp); }
+  .stat-amd { color: var(--stat-amd); }
+  .stat-crit { color: var(--stat-crit); }
+  .stat-combo { color: var(--stat-combo); }
+
+  /* ---------- Header ---------- */
+  .topbar {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; padding: 20px 28px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 130%);
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  .brand .mark {
+    font-family: var(--font-display); font-size: 22px; letter-spacing: 0.02em;
+    color: var(--accent-strong);
+  }
+  .brand .sub {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--text-faint);
+  }
+  .topbar .caveat {
+    font-size: 12px; color: var(--text-faint); max-width: 420px; text-align: right;
+  }
+
+  /* ---------- Layout ---------- */
+  .workbench {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr) 320px;
+    gap: 1px;
+    background: var(--border);
+  }
+  @media (max-width: 1100px) {
+    .workbench { grid-template-columns: 1fr; }
+  }
+  .pane {
+    background: var(--bg);
+    padding: 22px 24px;
+    min-width: 0;
+  }
+  /* Independent per-pane scroll regions only make sense in the fixed 3-column desktop
+     layout. Below 1100px the panes stack top-to-bottom, so let the page itself scroll —
+     otherwise touch scrolling fights between nested scroll regions. */
+  @media (min-width: 1101px) {
+    .pane-scroll { max-height: calc(100vh - 78px); overflow-y: auto; }
+    .results-pane { position: sticky; top: 0; }
+  }
+
+  .section { margin-bottom: 26px; }
+  .section:last-child { margin-bottom: 0; }
+  .section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.11em;
+    color: var(--text-faint); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after {
+    content: ""; flex: 1; height: 1px; background: var(--border-soft);
+  }
+
+  label.field { display: block; margin-bottom: 14px; }
+  label.field:last-child { margin-bottom: 0; }
+  .field-label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12.5px; color: var(--text-dim); margin-bottom: 5px;
+  }
+  .field-label .val { font-family: var(--font-mono); color: var(--text); }
+  .field-label .val.over { color: var(--crit); }
+
+  input[type="number"], input[type="text"], select {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 4px; padding: 7px 9px; font-size: 13.5px;
+    font-family: var(--font-ui);
+  }
+  input[type="number"] { font-family: var(--font-mono); }
+  input:focus, select:focus, button:focus, input[type="range"]:focus {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+  input[type="range"] {
+    width: 100%; accent-color: var(--accent); background: transparent;
+  }
+
+  .stepper { display: flex; align-items: center; gap: 8px; }
+  .stepper input[type="number"] { text-align: center; }
+  .stepper button {
+    width: 26px; height: 26px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); cursor: pointer; font-family: var(--font-mono);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .stepper button:hover { border-color: var(--accent); color: var(--accent); }
+  .stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .searchbox { position: relative; margin-bottom: 8px; }
+  .searchbox input { padding-left: 28px; }
+  .searchbox::before {
+    content: "⌕"; position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+    color: var(--text-faint); font-size: 13px;
+  }
+
+  .pick-list { max-height: 210px; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 6px; }
+  .pick-item {
+    display: flex; align-items: flex-start; gap: 9px; padding: 7px 10px;
+    border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13px;
+  }
+  .pick-item:last-child { border-bottom: none; }
+  .pick-item:hover { background: var(--surface-2); }
+  .pick-item input { margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
+  .pick-item .pi-name { color: var(--text); }
+  .pick-item .pi-desc { color: var(--text-faint); font-size: 11.5px; margin-top: 1px; }
+  .chosen-count {
+    font-family: var(--font-mono); font-size: 11px; color: var(--accent);
+    background: var(--accent-soft); border-radius: 3px; padding: 1px 6px; margin-left: auto;
+  }
+
+  select { appearance: none; -webkit-appearance: none; cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+    background-position: calc(100% - 16px) center, calc(100% - 11px) center;
+    background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 30px;
+  }
+
+  /* ---------- Icons (embedded, extracted from the game client) ---------- */
+  .icon-img { object-fit: contain; flex-shrink: 0; display: block; }
+  .select-icon-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .select-icon-row .icon-img { width: 28px; height: 28px; background: var(--surface-2); border-radius: 6px; padding: 3px; }
+  .select-icon-row select { flex: 1; }
+  .pi-icon { width: 26px; height: 26px; margin-top: 1px; }
+
+  /* ---------- Spell picker chips ---------- */
+  .spell-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  @media (max-width: 1100px) { .spell-grid { grid-template-columns: repeat(4, 1fr); } }
+  .spell-chip {
+    border: 1px solid var(--border); border-radius: 5px; padding: 7px 4px;
+    background: var(--surface); text-align: center; cursor: pointer; font-size: 11.5px;
+    color: var(--text-dim); line-height: 1.25;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .spell-chip .icon-img { width: 26px; height: 26px; }
+  .spell-chip:hover { border-color: var(--accent); color: var(--text); }
+  .spell-chip.active {
+    border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); font-weight: 600;
+  }
+  /* No direct damage stat (utility spells like Shield/Cloaking/Magic Circle) — still fully
+     selectable (you need to view them to pick their Evolutions), just visually distinguished
+     since their damage-focused fields in the main pane won't show numbers. */
+  .spell-chip.no-damage { border-style: dashed; color: var(--text-faint); }
+
+  /* ---------- Main pane: spell detail ---------- */
+  .spell-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+  .spell-head h2 { font-size: 26px; }
+  .spell-stats { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 4px; }
+  .spell-stat { font-size: 12px; color: var(--text-dim); }
+  .spell-stat .num { color: var(--text); font-size: 13px; }
+  .spell-desc { color: var(--text-dim); font-size: 13.5px; margin-bottom: 18px; max-width: 62ch; }
+
+  .upgrade-row {
+    padding: 10px 0; border-bottom: 1px solid var(--border-soft);
+  }
+  .upgrade-row:last-child { border-bottom: none; }
+  .upgrade-text { font-size: 13.5px; }
+
+  .evo-card {
+    border: 1px solid var(--border); border-radius: 7px; padding: 12px 14px; margin-bottom: 10px;
+    background: var(--surface); cursor: pointer; box-sizing: border-box;
+    transition: border-color .12s, box-shadow .12s, background-color .12s;
+  }
+  .evo-card:last-child { margin-bottom: 0; }
+  .evo-card:hover { border-color: var(--accent); }
+  /* Same visual language as the card tabs: a green ring, not the gold accent — active means
+     "selected", the gold accent is reserved for hover/focus elsewhere. */
+  .evo-card.active { border-color: var(--buff); box-shadow: 0 0 0 1px var(--buff); background: var(--buff-soft); }
+  .evo-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .evo-head .icon-img { width: 24px; height: 24px; }
+  .evo-name { font-family: var(--font-display); font-size: 15px; font-weight: 600; }
+  .evo-tier { font-size: 10px; color: var(--text-faint); font-family: var(--font-mono); }
+  .evo-desc { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+  .evo-desc div { margin-bottom: 2px; }
+  .evo-check { margin-left: auto; accent-color: var(--buff); }
+  /* Level-up cards (spell's own per-level progression) reuse .evo-card's exact look, including for
+     locked evolution-tier cards — same plain unselected style as any other not-yet-reached level
+     card, and the same solid accent-colored hover border every other card tab already uses (no
+     separate dashed/dotted treatment). */
+  .level-badge {
+    font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint);
+    border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin-right: 8px;
+  }
+  .evo-card.active .level-badge { color: var(--buff); border-color: var(--buff); }
+
+  .note {
+    font-size: 11.5px; color: var(--text-faint); border-left: 2px solid var(--border);
+    padding-left: 10px; margin-top: 14px; line-height: 1.6;
+  }
+
+  /* ---------- Results pane ---------- */
+  .results-pane { background: var(--surface); }
+  .damage-hero { text-align: center; padding: 8px 0 18px; border-bottom: 1px solid var(--border-soft); margin-bottom: 18px; }
+  .damage-hero .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-faint); }
+  .damage-hero .figure { font-family: var(--font-mono); font-size: 40px; font-weight: 600; color: var(--accent-strong); line-height: 1.15; }
+  .damage-hero .sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .damage-split { display: flex; justify-content: center; gap: 18px; margin-top: 10px; }
+  .damage-split div { text-align: center; }
+  .damage-split .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); }
+  .damage-split .v { font-family: var(--font-mono); font-size: 15px; }
+  .damage-split .v.crit { color: var(--stat-crit); }
+
+  .ledger-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 6px 0; font-size: 12.5px; border-bottom: 1px dashed var(--border-soft);
+    gap: 10px;
+  }
+  .ledger-row .lk { color: var(--text-dim); }
+  .ledger-row .lv { font-family: var(--font-mono); flex-shrink: 0; }
+  .ledger-row.total { border-bottom: none; border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; font-weight: 600; }
+  .ledger-row.total .lk { color: var(--text); }
+  .ledger-row.total .lv { color: var(--accent-strong); }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+  button.linklike {
+    background: none; border: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0;
+    font-family: var(--font-ui);
+  }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .toggle-row .field-label { margin-bottom: 0; }
+
+  /* ---------- Tabs ---------- */
+  .tabbar {
+    display: flex; gap: 2px; padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-faint);
+    font-family: var(--font-ui); font-size: 12.5px; padding: 11px 14px; cursor: pointer; white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent-strong); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab-btn .count { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); margin-left: 4px; }
+
+  /* ---------- Card browser (Research/Passives/Rarity tabs) ---------- */
+  .card-browser { padding: 22px 28px; }
+  .card-browser h2 { font-size: 20px; margin-bottom: 4px; }
+  .card-browser .sub { color: var(--text-dim); font-size: 13px; margin-bottom: 20px; max-width: 68ch; }
+  .card-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 10px;
+  }
+  .item-card {
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px 13px; background: var(--surface);
+    position: relative; box-sizing: border-box; display: flex; gap: 10px; align-items: flex-start;
+    transition: border-color .12s, box-shadow .12s, background-color .12s;
+  }
+  .item-card .ic-icon {
+    width: 40px; height: 40px; background: var(--surface-2); border-radius: 7px; padding: 4px;
+  }
+  .item-card .ic-body { flex: 1; min-width: 0; }
+  .item-card.clickable { cursor: pointer; }
+  .item-card.clickable:hover { border-color: var(--accent); }
+  .item-card.clickable .ic-name { padding-right: 0; }
+  .item-card.rarity-Common { border-left: 3px solid #c9c9c9; }
+  .item-card.rarity-Rare { border-left: 3px solid #4f9dde; }
+  .item-card.rarity-Epic { border-left: 3px solid #a568e0; }
+  .item-card.rarity-Special { border-left: 3px solid #e05d5d; }
+  .item-card.rarity-Legendary { border-left: 3px solid #e0a038; }
+  /* Active (level > 0 / added): a green ring via box-shadow, independent of the `border` property
+     entirely — so it never fights with the rarity-color left edge regardless of class order. */
+  .item-card.active {
+    border-color: var(--buff);
+    box-shadow: 0 0 0 1px var(--buff);
+    background: var(--buff-soft);
+  }
+  .item-card .ic-name { font-family: var(--font-display); font-size: 14.5px; font-weight: 600; margin-bottom: 3px; padding-right: 84px; }
+  .item-card .ic-desc { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
+  .item-card .ic-controls { position: absolute; top: 10px; right: 10px; }
+  .ic-stepper { display: flex; align-items: center; gap: 5px; }
+  .ic-stepper button {
+    width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text); cursor: pointer; font-family: var(--font-mono); display: flex; align-items: center; justify-content: center;
+  }
+  .ic-stepper button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .ic-stepper button:disabled { opacity: 0.3; cursor: not-allowed; }
+  .ic-stepper .ic-level { font-family: var(--font-mono); font-size: 12.5px; min-width: 14px; text-align: center; }
+  .item-card.active .ic-stepper .ic-level { color: var(--buff); font-weight: 600; }
+
+  .rarity-tabbar { display: flex; gap: 4px; margin-bottom: 18px; }
+  .rarity-tabbar button {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 6px 12px;
+    font-size: 12px; color: var(--text-dim); cursor: pointer; font-family: var(--font-ui);
+  }
+  .rarity-tabbar button.active { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+
+  /* ---------- Phone-width layout ---------- */
+  @media (max-width: 640px) {
+    .topbar { flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px 16px; }
+    .topbar .caveat { text-align: left; max-width: none; }
+    .tabbar { padding: 0 10px; }
+    .tab-btn { padding: 11px 10px; font-size: 12px; }
+    .pane { padding: 16px 14px; }
+    .card-browser { padding: 16px 14px; }
+    .spell-grid { grid-template-columns: repeat(3, 1fr); }
+    .damage-hero .figure { font-size: 32px; }
+    .damage-split { gap: 12px; flex-wrap: wrap; }
+    /* Bump touch targets — 22-26px steppers are below the ~44px minimum comfortable
+       tap size on a phone; widen the hit area without changing the visual density on desktop. */
+    .stepper button, .ic-stepper button { width: 34px; height: 34px; }
+    .rarity-tabbar { flex-wrap: wrap; }
+    .rarity-tabbar button { padding: 8px 12px; }
+    .card-grid { grid-template-columns: 1fr; }
+    .item-card .ic-name { padding-right: 78px; }
+  }
+
+  /* ---------- Synergy cards (segmented ring progress indicator) ---------- */
+  /* Synergy cards use their own absolute-positioned layout (ring in the corner), not the
+     icon+body flex row the other card types use. */
+  .item-card.synergy { display: block; padding-left: 58px; min-height: 76px; }
+  .synergy-ring { position: absolute; top: 12px; left: 12px; width: 40px; height: 40px; border-radius: 50%; }
+  .synergy-ring .hole {
+    position: absolute; inset: 6px; border-radius: 50%; background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .synergy-ring .hole .synergy-ring-icon { width: 21px; height: 21px; }
+  .item-card.synergy.active .synergy-ring .hole { background: var(--buff-soft); }
+  .synergy-components { font-size: 10.5px; color: var(--text-faint); margin-top: 6px; line-height: 1.6; }
+  .synergy-components .have { color: var(--buff); }
+</style>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="mark">Magic Survival</span>
+    <span class="sub">Damage Ledger</span>
+  </div>
+</div>
+
+<div class="tabbar" id="tabbar"></div>
+
+<div class="workbench" id="workbench">
+  <div class="pane pane-scroll" id="leftPane"></div>
+  <div class="pane pane-scroll" id="mainPane"></div>
+  <div class="pane pane-scroll results-pane" id="resultsPane"></div>
+</div>
+<div id="tabContent" style="display:none;"></div>
+
+<script>
+const GAMEDATA = __GAMEDATA_JSON__;
+const ICON_DATA = __ICON_DATA_JSON__;
+const ICON_MAP = __ICON_MAP_JSON__;
+</script>
+<script>
+__APP_JS__
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+</script>

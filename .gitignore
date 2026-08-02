@@ -1,0 +1,6 @@
+# Raw decompiled APK / Ghidra project / IL2CPP dump / full sprite extraction — local research
+# material only, not needed to build or run the site, and not meant for public redistribution.
+magicsurvival/
+
+# Agent Kanban's own diagnostic logs
+.agentkanban/logs/
