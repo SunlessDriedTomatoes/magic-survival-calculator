@@ -342,6 +342,17 @@ for (const row of mData) {
   if (!name || name === '`') continue;
   const ultNameCol = mHeader.indexOf('궁극기 이름');
   const ultDescCol = mHeader.indexOf('궁극기 설명줄01');
+  // "궁극기 조건" (Ultimate Condition) is the exact required School Class id, straight from the raw
+  // data — this is the real per-card requirement the game itself states, not something inferred.
+  // Confirmed against the real ultimate roster: Magic Bolt is the one spell with 5 different linked
+  // Classes (Wizard/Arcanist/Archaeologist/Magician/Black Mage), and its one real ultimate (Avatar
+  // -> Equilibrium) has condition=1 (Wizard specifically) — proving the true requirement is one
+  // specific named Class, not "any Class sharing that spell" (see isUltimateUnlocked). 0 means no
+  // ultimate/no requirement; values outside the 1-24 Class id range (e.g. Teleport's 25 — Cloaking
+  // has no linked Class at all) don't resolve to a real Class and are left for the existing
+  // "no linked Class -> unconditional unlock" fallback to handle.
+  const ultCondCol = mHeader.indexOf('궁극기 조건');
+  const ultimateRequiredClassId = ultCondCol !== -1 ? parseInt(row[ultCondCol], 10) || 0 : 0;
   const descLines = getDescLines(mHeader, row, '효과 설명줄');
   fusions.push({
     id: parseInt(row[MIDX.id], 10),
@@ -351,6 +362,7 @@ for (const row of mData) {
     effects: labelEffects(getEffectsGeneric(mHeader, row, 9), descLines),
     ultimateName: row[ultNameCol] || null,
     ultimateDescription: ultDescCol !== -1 ? stripColor(row[ultDescCol]) : null,
+    ultimateRequiredClassId: ultimateRequiredClassId || null,
   });
 }
 

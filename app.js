@@ -1034,15 +1034,18 @@ function getUltimateInfo(fusion) {
   return info ? { fusion, ...info } : null;
 }
 
-// An Ultimate can only be unlocked with the matching Class + Test Subject selected (same name,
-// both tied to the fusion's MAIN/primary spell only — see fusionPrimarySpellId) — e.g. a Magic
-// Bolt-primary fusion's ultimate needs "Wizard" picked as both your Class and your Test Subject,
-// even if the fusion's other (secondary) component happens to belong to a different spell.
-// Shield, Cloaking, Armageddon, and Magic Circle are utility/defensive spells with NO Class or Test
-// Subject linked to them anywhere in the data (every attack spell has one; these four don't) — the
-// class-gate mechanic can't structurally apply to a fusion rooted in one of them (e.g. Teleport ->
-// Hallucination, rooted in Cloaking), so those unlock unconditionally instead of being permanently
-// (and incorrectly) stuck "locked".
+// An Ultimate can only be unlocked with the specific matching Class + Test Subject selected (same
+// name, both tied to the fusion's MAIN/primary spell only — see fusionPrimarySpellId). For almost
+// every spell exactly one Class is linked to it at all, so "any Class linked to the primary spell"
+// and "the one specific required Class" are the same check — but Magic Bolt is linked to FIVE
+// Classes (Wizard/Arcanist/Archaeologist/Magician/Black Mage), and its one real ultimate (Avatar ->
+// Equilibrium) requires Wizard specifically, not any of the other four. fusion.ultimateRequiredClassId
+// (see build_gamedata.js) is the exact Class id the game's own ultimate card states, extracted
+// directly rather than inferred — used whenever it resolves to a real Class, falling back to the
+// old "any Class linked to the primary spell" check only for the handful of fusions where it
+// doesn't resolve (Shield/Cloaking/Armageddon/Magic Circle-rooted fusions have no Class linked to
+// their primary spell at all, e.g. Teleport -> Hallucination, rooted in Cloaking — those unlock
+// unconditionally rather than being permanently and incorrectly stuck "locked").
 function isUltimateUnlocked(fusion) {
   const primarySpellId = fusionPrimarySpellId(fusion);
   const primarySpell = primarySpellId != null ? GAMEDATA.spells[primarySpellId] : null;
@@ -1052,7 +1055,28 @@ function isUltimateUnlocked(fusion) {
   const cls = GAMEDATA.classes.school.find(c => c.id === state.classId);
   const ts = GAMEDATA.classes.testSubject.find(c => c.id === state.testSubjectId);
   if (!cls || !ts || cls.linkedSpellId == null || cls.linkedSpellId !== ts.linkedSpellId) return false;
+  const requiredClass = fusion.ultimateRequiredClassId != null
+    ? GAMEDATA.classes.school.find(c => c.id === fusion.ultimateRequiredClassId)
+    : null;
+  if (requiredClass) return cls.id === requiredClass.id && ts.name === requiredClass.name;
   return primarySpellId === cls.linkedSpellId;
+}
+
+// A Class/Test Subject is worth flagging with its modified spell (see the dropdown UI) only if it's
+// the actual required pick for at least one real, curated Ultimate (getUltimateInfo returns
+// non-null only for the 24 with confirmed data) — not merely "linked to a spell some fusion uses",
+// which for Magic Bolt would wrongly include 4 Classes that don't gate anything (see
+// isUltimateUnlocked above).
+function classGatesAnyUltimate(cls) {
+  return GAMEDATA.fusions.some(f => getUltimateInfo(f) && f.ultimateRequiredClassId === cls.id);
+}
+function testSubjectGatesAnyUltimate(ts) {
+  return GAMEDATA.fusions.some((f) => {
+    const ult = getUltimateInfo(f);
+    if (!ult || f.ultimateRequiredClassId == null) return false;
+    const reqClass = GAMEDATA.classes.school.find(c => c.id === f.ultimateRequiredClassId);
+    return reqClass && reqClass.name === ts.name;
+  });
 }
 
 // ===================== Compute =====================
@@ -1705,7 +1729,7 @@ function renderLeftPane() {
           const sel = el('select', { onchange: e => { state.classId = e.target.value ? parseInt(e.target.value, 10) : null; renderAll(); } });
           sel.appendChild(el('option', { value: '' }, '— None —'));
           for (const c of [...GAMEDATA.classes.school].sort((a, b) => a.name.localeCompare(b.name))) {
-            const linkedSpell = c.linkedSpellId != null ? GAMEDATA.spells[c.linkedSpellId] : null;
+            const linkedSpell = c.linkedSpellId != null && classGatesAnyUltimate(c) ? GAMEDATA.spells[c.linkedSpellId] : null;
             const opt = el('option', { value: c.id }, c.name + (linkedSpell ? ' — ' + linkedSpell.name : ''));
             if (state.classId === c.id) opt.setAttribute('selected', 'selected');
             sel.appendChild(opt);
@@ -1723,7 +1747,7 @@ function renderLeftPane() {
           const sel = el('select', { onchange: e => { state.testSubjectId = e.target.value ? parseInt(e.target.value, 10) : null; renderAll(); } });
           sel.appendChild(el('option', { value: '' }, '— None —'));
           for (const c of [...GAMEDATA.classes.testSubject].sort((a, b) => a.name.localeCompare(b.name))) {
-            const linkedSpell = c.linkedSpellId != null ? GAMEDATA.spells[c.linkedSpellId] : null;
+            const linkedSpell = c.linkedSpellId != null && testSubjectGatesAnyUltimate(c) ? GAMEDATA.spells[c.linkedSpellId] : null;
             const opt = el('option', { value: c.id }, c.name + (linkedSpell ? ' — ' + linkedSpell.name : ''));
             if (state.testSubjectId === c.id) opt.setAttribute('selected', 'selected');
             sel.appendChild(opt);

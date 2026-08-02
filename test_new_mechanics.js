@@ -12,8 +12,8 @@ const localStorageStub = { getItem: k => (k in store ? store[k] : null), setItem
 const sandbox = { GAMEDATA, ICON_MAP, ICON_DATA, document: documentStub, localStorage: localStorageStub, console, window: {} };
 vm.createContext(sandbox);
 const code = fs.readFileSync(appJsPath, 'utf8');
-vm.runInContext(code + '\nthis.__expose = { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion };', sandbox, { filename: 'app.js' });
-const { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion } = sandbox.__expose;
+vm.runInContext(code + '\nthis.__expose = { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate };', sandbox, { filename: 'app.js' });
+const { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate } = sandbox.__expose;
 
 function own(name) {
   const art = GAMEDATA.artifacts.find(a => a.name === name);
@@ -611,6 +611,30 @@ check('Cube + Taoist stacked: still stored at 5, auto-bonus makes it 70% ATK', r
 check('Intelligence manually maxed (5) counts as maxed for fusion eligibility, bonus sources active or not', allSelectedEvolutionIds().has(31), true);
 ownPassive('Intelligence', 4);
 check('Intelligence NOT manually maxed (4) does not count as maxed, even with both bonus sources active', allSelectedEvolutionIds().has(31), false);
+
+// --- Ultimate unlock: Magic Bolt is linked to 5 Classes (Wizard/Arcanist/Archaeologist/Magician/
+// Black Mage), but Avatar's real ultimate (Equilibrium) requires Wizard specifically — confirmed
+// via the game's own "Ultimate Condition" data (fusion.ultimateRequiredClassId), not any Class
+// sharing the spell. Regression-guards the fix in isUltimateUnlocked. ---
+reset();
+const avatar = GAMEDATA.fusions.find(f => f.name === 'Avatar');
+const wizC = GAMEDATA.classes.school.find(c => c.name === 'Wizard'), wizT = GAMEDATA.classes.testSubject.find(c => c.name === 'Wizard');
+const arcC = GAMEDATA.classes.school.find(c => c.name === 'Arcanist'), arcT = GAMEDATA.classes.testSubject.find(c => c.name === 'Arcanist');
+const magT = GAMEDATA.classes.testSubject.find(c => c.name === 'Magician');
+state.classId = wizC.id; state.testSubjectId = wizT.id;
+check('Avatar unlocks with Wizard Class + Wizard Test Subject', isUltimateUnlocked(avatar), true);
+state.classId = arcC.id; state.testSubjectId = arcT.id;
+check('Avatar stays locked with Arcanist+Arcanist (same name, same spell, but not the required Class)', isUltimateUnlocked(avatar), false);
+state.classId = arcC.id; state.testSubjectId = magT.id;
+check('Avatar stays locked with Arcanist Class + Magician Test Subject (mismatched names)', isUltimateUnlocked(avatar), false);
+
+// --- Class/Test Subject dropdown gating: only Classes/Test Subjects that are the actual required
+// pick for at least one real ultimate should get flagged, not merely "linked to a spell some fusion
+// uses" — this excludes 4 of the 5 Magic-Bolt Classes/Test Subjects (only Wizard gates one). ---
+check('classGatesAnyUltimate: Wizard gates Avatar', classGatesAnyUltimate(wizC), true);
+check('classGatesAnyUltimate: Arcanist gates nothing', classGatesAnyUltimate(arcC), false);
+check('testSubjectGatesAnyUltimate: Wizard gates Avatar', testSubjectGatesAnyUltimate(wizT), true);
+check('testSubjectGatesAnyUltimate: Magician gates nothing', testSubjectGatesAnyUltimate(magT), false);
 
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

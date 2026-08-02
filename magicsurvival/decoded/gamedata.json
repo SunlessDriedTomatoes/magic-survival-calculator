@@ -9121,7 +9121,8 @@
         }
       ],
       "ultimateName": "Stormbringer",
-      "ultimateDescription": "Thunderstorm strikes instantly."
+      "ultimateDescription": "Thunderstorm strikes instantly.",
+      "ultimateRequiredClassId": 4
     },
     {
       "id": 2,
@@ -9144,7 +9145,8 @@
         }
       ],
       "ultimateName": "Aura Blade",
-      "ultimateDescription": "Spirit projectiles have a low chance to greatly amplify their power and are strengthened in proportion to Critical Rate."
+      "ultimateDescription": "Spirit projectiles have a low chance to greatly amplify their power and are strengthened in proportion to Critical Rate.",
+      "ultimateRequiredClassId": 7
     },
     {
       "id": 3,
@@ -9178,7 +9180,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 4,
@@ -9207,7 +9210,8 @@
         }
       ],
       "ultimateName": "아칸",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 5,
@@ -9229,7 +9233,8 @@
         }
       ],
       "ultimateName": "Ground Zero",
-      "ultimateDescription": "Meteor becomes massive and bombards the entire field."
+      "ultimateDescription": "Meteor becomes massive and bombards the entire field.",
+      "ultimateRequiredClassId": 5
     },
     {
       "id": 6,
@@ -9268,7 +9273,8 @@
         }
       ],
       "ultimateName": "Nemesis",
-      "ultimateDescription": "Fireball Damage increases with each consecutive explosion."
+      "ultimateDescription": "Fireball Damage increases with each consecutive explosion.",
+      "ultimateRequiredClassId": 11
     },
     {
       "id": 7,
@@ -9296,7 +9302,8 @@
         }
       ],
       "ultimateName": "Berserk",
-      "ultimateDescription": "Flash Shock cast count stacks are always maintained at the maximum, @ and the maximum stack count increases in proportion to Critical Rate."
+      "ultimateDescription": "Flash Shock cast count stacks are always maintained at the maximum, @ and the maximum stack count increases in proportion to Critical Rate.",
+      "ultimateRequiredClassId": 22
     },
     {
       "id": 8,
@@ -9326,7 +9333,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 9,
@@ -9354,7 +9362,8 @@
         }
       ],
       "ultimateName": "오버차지",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 10,
@@ -9388,7 +9397,8 @@
         }
       ],
       "ultimateName": "Darkness",
-      "ultimateDescription": "Cyclone occasionally manifests in an intensified, unified form."
+      "ultimateDescription": "Cyclone occasionally manifests in an intensified, unified form.",
+      "ultimateRequiredClassId": 10
     },
     {
       "id": 11,
@@ -9416,7 +9426,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 12,
@@ -9449,7 +9460,8 @@
         }
       ],
       "ultimateName": "아마테라스",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 13,
@@ -9482,7 +9494,8 @@
         }
       ],
       "ultimateName": "익스터미네이션",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 14,
@@ -9505,7 +9518,8 @@
         }
       ],
       "ultimateName": "Omega",
-      "ultimateDescription": "Cyclone Duration is converted into Damage, and it explodes upon expiration."
+      "ultimateDescription": "Cyclone Duration is converted into Damage, and it explodes upon expiration.",
+      "ultimateRequiredClassId": 10
     },
     {
       "id": 15,
@@ -9538,7 +9552,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 16,
@@ -9555,7 +9570,8 @@
       ],
       "effects": [],
       "ultimateName": "Quantum Laser",
-      "ultimateDescription": "Arcane Ray increases in power and rotates faster in proportion to the number of active rays."
+      "ultimateDescription": "Arcane Ray increases in power and rotates faster in proportion to the number of active rays.",
+      "ultimateRequiredClassId": 9
     },
     {
       "id": 17,
@@ -9577,7 +9593,8 @@
         }
       ],
       "ultimateName": "Death Storm",
-      "ultimateDescription": "Thunderstorm increases its consecutive cast count and is generated faster."
+      "ultimateDescription": "Thunderstorm increases its consecutive cast count and is generated faster.",
+      "ultimateRequiredClassId": 4
     },
     {
       "id": 18,
@@ -9600,7 +9617,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 19,
@@ -9622,7 +9640,8 @@
         }
       ],
       "ultimateName": "Inquisitor",
-      "ultimateDescription": "Incineration erupts explosively in an instant."
+      "ultimateDescription": "Incineration erupts explosively in an instant.",
+      "ultimateRequiredClassId": 23
     },
     {
       "id": 20,
@@ -9650,7 +9669,8 @@
         }
       ],
       "ultimateName": "템페스터",
-      "ultimateDescription": "감전지대가 더 많은 투사체를 생성하고 더 강해진다."
+      "ultimateDescription": "감전지대가 더 많은 투사체를 생성하고 더 강해진다.",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 21,
@@ -9684,7 +9704,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 22,
@@ -9706,7 +9727,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 23,
@@ -9734,7 +9756,8 @@
         }
       ],
       "ultimateName": "Mega Tsunami",
-      "ultimateDescription": "Tsunami occurs simultaneously across a wide area."
+      "ultimateDescription": "Tsunami occurs simultaneously across a wide area.",
+      "ultimateRequiredClassId": 17
     },
     {
       "id": 24,
@@ -9761,7 +9784,8 @@
         }
       ],
       "ultimateName": "Zero Nova",
-      "ultimateDescription": "Frost Nova explosions are generated rapidly in large quantities."
+      "ultimateDescription": "Frost Nova explosions are generated rapidly in large quantities.",
+      "ultimateRequiredClassId": 3
     },
     {
       "id": 25,
@@ -9795,7 +9819,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 26,
@@ -9813,7 +9838,8 @@
       ],
       "effects": [],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 27,
@@ -9829,7 +9855,8 @@
       ],
       "effects": [],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 28,
@@ -9856,7 +9883,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 29,
@@ -9890,7 +9918,8 @@
         }
       ],
       "ultimateName": "Blitz",
-      "ultimateDescription": "Energy Bolt splits consecutively two times."
+      "ultimateDescription": "Energy Bolt splits consecutively two times.",
+      "ultimateRequiredClassId": 13
     },
     {
       "id": 30,
@@ -9918,7 +9947,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 31,
@@ -9952,7 +9982,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 32,
@@ -9975,7 +10006,8 @@
         }
       ],
       "ultimateName": "Abaddon",
-      "ultimateDescription": "Satellites merge into a single sun, dealing 33% damage to all enemies across the field."
+      "ultimateDescription": "Satellites merge into a single sun, dealing 33% damage to all enemies across the field.",
+      "ultimateRequiredClassId": 2
     },
     {
       "id": 33,
@@ -10004,7 +10036,8 @@
         }
       ],
       "ultimateName": "Equilibrium",
-      "ultimateDescription": "Doppelganger creates 3 additional clones."
+      "ultimateDescription": "Doppelganger creates 3 additional clones.",
+      "ultimateRequiredClassId": 1
     },
     {
       "id": 34,
@@ -10026,7 +10059,8 @@
         }
       ],
       "ultimateName": "Arc",
-      "ultimateDescription": "Electric Shock is enhanced; projectiles no longer split during chains but do not lose power."
+      "ultimateDescription": "Electric Shock is enhanced; projectiles no longer split during chains but do not lose power.",
+      "ultimateRequiredClassId": 12
     },
     {
       "id": 35,
@@ -10059,7 +10093,8 @@
         }
       ],
       "ultimateName": "Giant Impact",
-      "ultimateDescription": "Meteor Fall unifies into a single impact, stunning all nearby enemies upon explosion."
+      "ultimateDescription": "Meteor Fall unifies into a single impact, stunning all nearby enemies upon explosion.",
+      "ultimateRequiredClassId": 5
     },
     {
       "id": 36,
@@ -10081,7 +10116,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 37,
@@ -10114,7 +10150,8 @@
         }
       ],
       "ultimateName": "Lockdown",
-      "ultimateDescription": "Electric Zone is generated as waves, and the interval becomes faster in proportion to Cooldown."
+      "ultimateDescription": "Electric Zone is generated as waves, and the interval becomes faster in proportion to Cooldown.",
+      "ultimateRequiredClassId": 16
     },
     {
       "id": 38,
@@ -10148,7 +10185,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 39,
@@ -10182,7 +10220,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 40,
@@ -10210,7 +10249,8 @@
         }
       ],
       "ultimateName": "Hallucination",
-      "ultimateDescription": "Etherealization explosions chain 5 times."
+      "ultimateDescription": "Etherealization explosions chain 5 times.",
+      "ultimateRequiredClassId": 25
     },
     {
       "id": 41,
@@ -10232,7 +10272,8 @@
         }
       ],
       "ultimateName": "볼케이노",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 42,
@@ -10260,7 +10301,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 43,
@@ -10294,7 +10336,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 44,
@@ -10327,7 +10370,8 @@
         }
       ],
       "ultimateName": "Ascension",
-      "ultimateDescription": "Flash Shock is generated without limit and accelerates proportionally to Cooldown and Quantity."
+      "ultimateDescription": "Flash Shock is generated without limit and accelerates proportionally to Cooldown and Quantity.",
+      "ultimateRequiredClassId": 22
     },
     {
       "id": 45,
@@ -10354,7 +10398,8 @@
         }
       ],
       "ultimateName": "Core",
-      "ultimateDescription": "Satellites rotate rapidly across a wide radius with increased power."
+      "ultimateDescription": "Satellites rotate rapidly across a wide radius with increased power.",
+      "ultimateRequiredClassId": 2
     },
     {
       "id": 46,
@@ -10389,7 +10434,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 47,
@@ -10422,7 +10468,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 48,
@@ -10462,7 +10509,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 49,
@@ -10489,7 +10537,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 50,
@@ -10514,7 +10563,8 @@
         }
       ],
       "ultimateName": "이벤트 호라이즌",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 51,
@@ -10541,7 +10591,8 @@
         }
       ],
       "ultimateName": "Cosmos",
-      "ultimateDescription": "Blizzard occurs simultaneously over a wide area."
+      "ultimateDescription": "Blizzard occurs simultaneously over a wide area.",
+      "ultimateRequiredClassId": 21
     },
     {
       "id": 52,
@@ -10574,7 +10625,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 53,
@@ -10613,7 +10665,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 54,
@@ -10640,7 +10693,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 55,
@@ -10674,7 +10728,8 @@
         }
       ],
       "ultimateName": "헬게이트",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 56,
@@ -10702,7 +10757,8 @@
         }
       ],
       "ultimateName": "Overload",
-      "ultimateDescription": "Lava Zone is enhanced and generates faster."
+      "ultimateDescription": "Lava Zone is enhanced and generates faster.",
+      "ultimateRequiredClassId": 15
     },
     {
       "id": 57,
@@ -10741,7 +10797,8 @@
         }
       ],
       "ultimateName": "Terminator",
-      "ultimateDescription": "Electric Zone is cast at shorter intervals with heightened destructive force."
+      "ultimateDescription": "Electric Zone is cast at shorter intervals with heightened destructive force.",
+      "ultimateRequiredClassId": 16
     },
     {
       "id": 58,
@@ -10770,7 +10827,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 59,
@@ -10803,7 +10861,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 60,
@@ -10824,7 +10883,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 61,
@@ -10857,7 +10917,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 62,
@@ -10879,7 +10940,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     },
     {
       "id": 63,
@@ -10906,7 +10968,8 @@
         }
       ],
       "ultimateName": "`",
-      "ultimateDescription": "`"
+      "ultimateDescription": "`",
+      "ultimateRequiredClassId": null
     }
   ],
   "synergies": [
