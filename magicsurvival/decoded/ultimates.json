@@ -1,0 +1,70 @@
+{
+  "_source": "Community-reported (Discord), verified against extracted encyclopedia base + fusion multiplier data — 20 of 24 matched the reported final base damage exactly. `verified: true` = validated flat multiplier with no stat-dependent scaling in its description. `verified: \"approximate\"` = the description explicitly says the real value depends on your own stats (crit rate, stacking, an unidentified condition) — the stored number is a single reference point, not the true value at your loadout.",
+  "byFusionName": {
+    "Empyrean Wrath": { "ultimateName": "Stormbringer", "multiplier": 6, "verified": true, "note": "All Thunderstorms strike at the same time — a structural combine, not a stat-scaled bonus." },
+    "Telekinetic Sword": {
+      "ultimateName": "Aura Blade", "special": "critScalingLinear", "multiplier": 1.5, "multiplierMax": 2, "verified": true,
+      "note": "Modeled directly: 6% chance for 5x dmg (at 0% crit) scaling linearly to 12% chance at 100% crit rate — tied to your Crit Chance slider."
+    },
+    "War Climate": { "ultimateName": "Ground Zero", "multiplier": 9, "verified": true, "note": "Range/cooldown change, not stat-scaled." },
+    "Demon Equation": {
+      "ultimateName": "Nemesis", "multiplier": 4, "verified": "approximate",
+      "note": "Real mechanic is stacking, not flat: every Fireball hit that lands increases damage +20% and size +10%, with no stated cap. 4x is a single reported snapshot, not your actual value — it depends on how many consecutive hits land before you're measuring."
+    },
+    "Frenzy": { "ultimateName": "Berserk", "multiplier": 3.5, "verified": true },
+    "Vortex": {
+      "ultimateName": "Darkness", "multiplier": 4.25, "verified": true,
+      "note": "Every 2nd Cyclone cast combines for bonus damage — 4.25x is a per-cast average across that proc pattern, not literal on every single hit."
+    },
+    "Neutron Generation": {
+      "ultimateName": "Omega", "multiplier": 5, "verified": true,
+      "note": "Cyclone's duration converts into an end-of-life explosion — 5x represents total damage across that Cyclone's full lifecycle, not one instant hit."
+    },
+    "Plasma Ray": {
+      "ultimateName": "Quantum Laser", "verified": true, "special": "raySquared",
+      "note": "Damage = Arcane Ray base × (active rays)^2. Confirmed exactly against reported values: 4 rays -> 144, 7 rays -> 441.",
+      "rayMin": 4, "rayMax": 7
+    },
+    "Lightning Bolts": { "ultimateName": "Death Storm", "multiplier": 3, "verified": true, "note": "Fixed 8-strike count, not stat-scaled. Note: doesn't account for the total burst across all 8 strikes, only per-strike damage." },
+    "Inferno": {
+      "ultimateName": "Inquisitor", "multiplier": 3, "verified": "approximate",
+      "note": "Reported as an 'up to' value. Inferno's own fusion bonus is a stacking multiplier ('Max Multiplier: Damage X30') with no clean fixed number, so 3x is applied directly on base damage rather than compounding with a separate fusion X — treat as an upper-bound estimate, not your actual value."
+    },
+    "Great Flood": { "ultimateName": "Mega Tsunami", "multiplier": 7.5, "verified": true, "note": "Area/range change, not stat-scaled." },
+    "Snowflake Blossom": { "ultimateName": "Zero Nova", "multiplier": 1.5, "verified": true, "note": "Fixed 40-explosion count, not stat-scaled. Per-explosion damage, not the summed burst." },
+    "Origin Explosion": {
+      "ultimateName": "Blitz", "multiplier": 1.75, "verified": "approximate",
+      "note": "Conditional on something called the 'Hextech module' (+25% damage before splitting if active) that we haven't identified in the extracted data — 1.75x assumes that condition is NOT active. If you have whatever that refers to, your real value will be higher."
+    },
+    "Hyperion": {
+      "ultimateName": "Abaddon", "multiplier": 3.3, "verified": "approximate",
+      "note": "Reported at '8 satellites'. Hyperion's own fusion bonus scales damage with Satellite size dynamically (not a fixed X), so 3.3x is applied directly on base damage rather than compounding with a separate fusion X — treat as approximate."
+    },
+    "Avatar": { "ultimateName": "Equilibrium", "multiplier": 3.3, "verified": "unusable", "note": "Cloaking has no direct base damage in the Encyclopedia, so this can't be computed here." },
+    "Heart of Lightning": { "ultimateName": "Arc", "multiplier": 9, "verified": true, "note": "Removes a split penalty, not stat-scaled." },
+    "Great Impact": { "ultimateName": "Giant Impact", "multiplier": 5, "verified": true, "note": "Structural combine (like Stormbringer), not stat-scaled." },
+    "Meisner Effect": {
+      "ultimateName": "Lockdown", "multiplier": 6, "verified": true,
+      "note": "Per-hit damage multiplier is flat/validated. Its cast interval is a fixed 3s base 'affected by cdr' rather than your spell's normal cooldown formula — the DPS estimate below may be off for this one since it doesn't model that specific rule."
+    },
+    "Teleport": {
+      "ultimateName": "Hallucination", "multiplier": 1.25, "verified": true,
+      "damageScalingText": "Space Warp's explosion damage also scales 1:1 with Cloaking's own total Duration%.",
+      "note": "Also chains explosions 5x (each at 80% of the previous), not modeled — this is per-hit damage only, same convention as every other ultimate here."
+    },
+    "Gate": {
+      "ultimateName": "Ascension", "multiplier": 3.5, "verified": true,
+      "note": "Per-hit damage multiplier is flat/validated. Removes its cooldown for a generation-interval mechanic that scales with cast count and CDR — the DPS estimate below doesn't model that rule precisely."
+    },
+    "Magnetic Field": { "ultimateName": "Core", "multiplier": 5, "verified": true, "note": "Rotation/radius change, not stat-scaled." },
+    "Genesis": { "ultimateName": "Cosmos", "multiplier": 3.25, "verified": true, "note": "Fixed 50-projectile burst, not stat-scaled. Per-projectile damage, not the summed burst." },
+    "Age of the Sun": {
+      "ultimateName": "Overload", "multiplier": 2, "verified": true,
+      "note": "Per-hit damage multiplier is flat/validated. Its cooldown starts 1.75s after cast rather than on cast — the DPS estimate below doesn't model that offset."
+    },
+    "Destroyer": {
+      "ultimateName": "Terminator", "multiplier": 5, "verified": true,
+      "note": "Per-hit damage multiplier is flat/validated. Reduces its base cooldown/duration to a fixed 2s rather than the normal formula — the DPS estimate below doesn't model that override."
+    }
+  }
+}

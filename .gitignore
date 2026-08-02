@@ -1,6 +1,14 @@
-# Raw decompiled APK / Ghidra project / IL2CPP dump / full sprite extraction — local research
-# material only, not needed to build or run the site, and not meant for public redistribution.
-magicsurvival/
+# Raw decompiled APK / Ghidra project / IL2CPP dump / full sprite extraction / raw multi-language
+# text dumps — local research material only, not needed to build or run the site, and not meant
+# for public redistribution. The small derived JSON files under magicsurvival/decoded/ are NOT
+# excluded (see below) — build_artifact.js and the test suite need them, and their content is
+# already fully embedded in the deployed site regardless, so tracking them adds no new exposure.
+magicsurvival/*
+!magicsurvival/decoded/
+magicsurvival/decoded/*
+!magicsurvival/decoded/gamedata.json
+!magicsurvival/decoded/ultimates.json
+!magicsurvival/decoded/base_spell_stats.json
 
 # Agent Kanban's own internal task-tracking files — not relevant to repo visitors.
 .agentkanban/

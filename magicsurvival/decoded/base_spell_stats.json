@@ -1,0 +1,23 @@
+{
+  "1": { "name": "Magic Bolt", "damage": 5, "size": 1, "number": 1, "cooldown": 0.75, "explosionRange": 1 },
+  "2": { "name": "Fireball", "damage": 7, "size": 1, "number": 1, "cooldown": 1.5, "explosionRange": 1 },
+  "3": { "name": "Spirit", "damage": 7, "number": 1, "cooldown": 0.9 },
+  "4": { "name": "Satellite", "damage": 5, "rotationSpeed": 1, "size": 1, "number": 1 },
+  "5": { "name": "Frost Nova", "damage": 12, "explosionRange": 1, "cooldown": 5.5 },
+  "7": { "name": "Thunderstorm", "damage": 15, "explosionRange": 1, "number": 1, "cooldown": 2 },
+  "8": { "name": "Electric Zone", "damage": 1, "damageInterval": 0.25, "size": 1 },
+  "9": { "name": "Tsunami", "damage": 7, "size": 1, "number": 8, "cooldown": 8.5 },
+  "10": { "name": "Meteor", "damage": 15, "explosionRange": 1, "number": 1, "cooldown": 4.5 },
+  "12": { "name": "Cyclone", "damage": 5, "damageInterval": 0.3, "size": 1, "duration": 2, "number": 1, "cooldown": 3.5 },
+  "13": { "name": "Electric Shock", "damage": 5, "size": 1, "number": 2, "cooldown": 2 },
+  "15": { "name": "Incineration", "damage": 5, "size": 1, "number": 15, "cooldown": 4 },
+  "16": { "name": "Energy Bolt", "damage": 8, "size": 1, "duration": 0.018, "number": 5, "cooldown": 3.3 },
+  "17": { "name": "Blizzard", "damage": 7, "explosionRange": 1, "number": 20, "cooldown": 6 },
+  "18": { "name": "Arcane Ray", "damage": 9, "size": 0.25, "duration": 0.8, "number": 1, "cooldown": 3.5 },
+  "20": { "name": "Lava Zone", "damage": 10, "damageInterval": 0.5, "size": 1, "duration": 6, "number": 1, "cooldown": 5 },
+  "21": { "name": "Flash Shock", "damage": 18, "size": 1, "number": 1, "cooldown": 10 },
+  "6": { "name": "Shield", "damage": 30, "note": "confirmed by user directly; blocks damage once per cast, unrelated to its own damage stat" },
+  "11": { "name": "Cloaking", "damage": 500, "note": "confirmed by user directly" },
+  "14": { "name": "Armageddon", "note": "not provided by user - unknown base stats" },
+  "19": { "name": "Magic Circle", "note": "no direct damage stat (utility - amplifies attack during duration)" }
+}
