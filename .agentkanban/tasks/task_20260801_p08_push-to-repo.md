@@ -1,8 +1,8 @@
 ---
 title: "8. Push calculator + PWA files to the GitHub repo"
-lane: todo
+lane: done
 created: 2026-08-01T05:07:00.000Z
-updated: 2026-08-01T05:07:00.000Z
+updated: 2026-08-02T00:22:00.000Z
 description: Claude's action item.
 ---
 
