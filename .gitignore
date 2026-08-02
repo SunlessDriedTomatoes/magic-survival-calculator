@@ -2,5 +2,6 @@
 # material only, not needed to build or run the site, and not meant for public redistribution.
 magicsurvival/
 
-# Agent Kanban's own diagnostic logs
-.agentkanban/logs/
+# Agent Kanban's own internal task-tracking files — not relevant to repo visitors.
+.agentkanban/
+AGENTS.md
