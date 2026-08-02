@@ -13,3 +13,25 @@ magicsurvival/decoded/*
 # Agent Kanban's own internal task-tracking files — not relevant to repo visitors.
 .agentkanban/
 AGENTS.md
+
+# One-off scratch/debugging scripts from the reverse-engineering process — not needed to build
+# or run the site, not runnable standalone anyway (their raw inputs are excluded above).
+allsprites.txt
+audit_brackets.js
+audit_classifier_diff.js
+build_icon_manifest.js
+build_icons_json.js
+build_spell_data.js
+check_dupes.js
+check_map.js
+check_ultimate_condition.js
+decode_dataset.js
+explore_magicbolt_branches.js
+explore_traits.js
+find_effect_id.js
+get_strings.js
+inspect_effect_ids.js
+prototype_levelupgrades.js
+resize_icons.ps1
+trace_teleport.js
+unique_icon_files.txt
