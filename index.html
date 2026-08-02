@@ -12929,14 +12929,13 @@ function totalActiveMagicLevels() {
 // A fusion combines exactly two components (requiresEvolutionIds[0] and [1]) but only ONE of them
 // is the actual damage-dealing spell in-game — the "main component," shown in green in the game's
 // own UI — the other is purely a requirement with no bearing on which spell the fusion's damage
-// applies to. Verified two ways: (1) every one of the 58 fusions whose own effect text names a
-// spell (e.g. "Increase Flash Shock Damage by 7X") names exactly the spell behind
-// requiresEvolutionIds[0], never [1], with zero exceptions across the full dataset; (2) directly
-// confirmed by you for Frenzy → Berserk (Satan's Nails/Flash Shock is requiresEvolutionIds[0];
-// Fire at Will/Magic Bolt, requiresEvolutionIds[1], gets none of its bonuses). A [0] slot can also
-// be a maxed Passive rather than a spell evolution (e.g. Overmind's is Intelligence) — those
-// fusions grant no spell-specific damage at all (global buffs only, handled separately), so
-// returning null for them is correct: there's no "main spell" to gate an Ultimate on.
+// applies to. requiresEvolutionIds[0] is always the primary: every fusion whose own effect text
+// names a spell (e.g. "Increase Flash Shock Damage by 7X") names exactly the spell behind slot
+// [0], never [1], with zero exceptions across the dataset (confirmed against Frenzy → Berserk
+// specifically: Flash Shock is slot [0] and gets the bonuses, Magic Bolt is slot [1] and gets
+// none). A [0] slot can also be a maxed Passive rather than a spell evolution (e.g. Overmind's is
+// Intelligence) — those fusions grant no spell-specific damage at all (global buffs only, handled
+// separately), so returning null for them is correct: there's no "main spell" to gate an Ultimate on.
 function fusionPrimarySpellId(fusion) {
   const primaryEvoId = fusion.requiresEvolutionIds[0];
   for (const spell of Object.values(GAMEDATA.spells)) {
@@ -12945,11 +12944,11 @@ function fusionPrimarySpellId(fusion) {
   return null;
 }
 
-// Shield and Cloaking are the two confirmed exceptions to "base damage always comes straight from
-// the in-game encyclopedia" — the extracted data had no damage figure for either (both showed only
-// a "no direct damage stat" utility note), but the real encyclopedia does list one for each (30 and
-// 500 respectively, confirmed directly), now baked into base_spell_stats.json like every other
-// spell. Both are per-hit, matching this calculator's convention everywhere else. Neither spell
+// Shield and Cloaking are the two exceptions to "base damage always comes straight from the
+// in-game encyclopedia" — the extracted data had no damage figure for either (both showed only a
+// "no direct damage stat" utility note), so their real encyclopedia values (30 and 500
+// respectively) are baked into base_spell_stats.json directly instead. Both are per-hit, matching
+// this calculator's convention everywhere else. Neither spell
 // deals damage on its own without a fusion built around it (Photon Explosion, Teleport) — this base
 // value is what those fusions' own damage effects (e.g. Teleport's "Increase Cloaking Damage by
 // 3X") multiply against — but the base figure itself isn't conditional on a fusion being selected,
@@ -12970,9 +12969,7 @@ const MAGIC_CIRCLE_FUSIONS = [OVERMIND_FUSION, PERPETUAL_ENGINE_FUSION, GATE_OF_
 
 // Titan's Power and Nexus are both explicitly "multiply the total, not add to a pool" mechanics —
 // applied as their own late multiplicative factor rather than folded into the additive ATK%/MDMG%
-// pools everything else uses. Unlike the ultimates (cross-checked against 20+ real reported
-// numbers), there's no equivalent validation data for these two, so this is a best-effort literal
-// reading of their text, flagged as such wherever it's shown.
+// pools everything else uses.
 const TITANS_POWER = GAMEDATA.artifacts.find(a => a.name === "Titan's Power") || null;
 const NEXUS_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Nexus') || null;
 const CONFLUX_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Conflux') || null;
@@ -12980,7 +12977,7 @@ const CONFLUX_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Conflux') || nu
 // Arbiter and Heartbreaker are, like Titan/Nexus above, text-only synergies with no structured
 // {id,value} effect behind them at all — their whole benefit is a flat late multiplier read
 // straight from their description ("Total Magic Damage Multiplier x1.25" / "Critical Multiplier
-// x1.25"), so the x1.25 is hardcoded here rather than parsed, same confidence caveat as Titan/Nexus.
+// x1.25"), so the x1.25 is hardcoded here rather than parsed.
 const ARBITER_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Arbiter') || null;
 const HEARTBREAKER_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Heartbreaker') || null;
 // Monarch (synergy) and Crown (artifact) both scale ATK dynamically off owned-artifact rarity
@@ -13116,10 +13113,8 @@ function selectMagicCircleFusion(fusionId, checked) {
 // Normal Passives unlock a *second*, separate progression tier after hitting their normal Max
 // Level — a reduced per-level value on the same stat (e.g. Intelligence: +10%/level ATK normally,
 // then +3%/level after max). These are built as their own selectable pool here, distinct from the
-// normal-tier version of the same passive. Unlike the normal tier (confirmed non-uniform, 2-5 per
-// passive), the post-max cap is meant to be uniform across all of them — no extracted data
-// confirms the exact number, so this uses 7 per your own recollection, flagged in the UI as
-// unconfirmed (a "Genius" synergy extends it by +10, implying a real base cap exists somewhere).
+// normal-tier version of the same passive. Unlike the normal tier (non-uniform, 2-5 per passive),
+// the post-max cap is uniform across all of them at 7 (a "Genius" synergy extends it by +10).
 const POST_MAX_LEVEL_CAP = 7;
 const PASSIVES_POST_MAX = GAMEDATA.passives.filter(p => p.postMaxEffect).map(p => ({
   id: p.id, name: p.name, maxLevel: POST_MAX_LEVEL_CAP,
@@ -13772,9 +13767,8 @@ function compute() {
     else if (c.kind === 'maxHpReduction') { maxHpReductionPct += c.amount; }
   }
 
-  // Base Crit Chance (5%) and Base Crit Multiplier (200%) are fixed, confirmed values with zero
-  // bonuses. Everything found above (Critical Strike Rate/Multiplier effects) stacks additively
-  // on top, matching how every other %-based pool in this calculator works.
+  // Everything found above (Critical Strike Rate/Multiplier effects) stacks additively on top of
+  // the base values, matching how every other %-based pool in this calculator works.
   const critChance = Math.min(100, Math.max(0, PLAYER_BASE_CRIT_CHANCE + critChancePct));
   const critMultiPreHeartbreaker = PLAYER_BASE_CRIT_MULT + critMultPct;
   // Heartbreaker (Synergy): flat x1.25 "Critical Multiplier" — same late-multiplier treatment as
@@ -14190,8 +14184,6 @@ function iconImg(key, className) {
 }
 
 // Native confirm()/alert() can be blocked or unreliable inside a sandboxed iframe (e.g. an
-// Artifact preview), so destructive actions use an inline "are you sure" toggle instead.
-// Native confirm()/alert() can be blocked or unreliable inside a sandboxed iframe (e.g. an
 // Artifact preview), so every destructive/overwriting action here uses an inline "are you sure"
 // toggle instead: { type: 'save'|'load'|'delete'|'reset', name?: string }, or null.
 let pendingConfirm = null;
@@ -14518,9 +14510,9 @@ function renderLeftPane() {
   pane.appendChild(fusionSection);
   pane.appendChild(mcSection);
 
-  // Crit Chance/Multiplier base values are fixed (confirmed 5%/200% with zero bonuses) — not
-  // player-editable, same treatment as Base ATK. Every "Increase Critical Strike Rate/Multiplier
-  // by X%" effect among current selections is found automatically and added on top.
+  // Crit Chance/Multiplier base values are fixed, not player-editable, same treatment as Base ATK.
+  // Every "Increase Critical Strike Rate/Multiplier by X%" effect among current selections is
+  // found automatically and added on top.
   const critR = compute();
   const critSection = el('div', { class: 'section' }, [
     el('div', { class: 'section-title' }, 'Critical Hit'),

@@ -14,6 +14,9 @@ magicsurvival/decoded/*
 .agentkanban/
 AGENTS.md
 
+# Claude's own local notes preserving the fuller derivation history trimmed out of source comments.
+DERIVATION_NOTES.md
+
 # One-off scratch/debugging scripts from the reverse-engineering process — not needed to build
 # or run the site, not runnable standalone anyway (their raw inputs are excluded above).
 allsprites.txt
