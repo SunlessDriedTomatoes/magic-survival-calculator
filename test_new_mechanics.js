@@ -636,5 +636,25 @@ check('classGatesAnyUltimate: Arcanist gates nothing', classGatesAnyUltimate(arc
 check('testSubjectGatesAnyUltimate: Wizard gates Avatar', testSubjectGatesAnyUltimate(wizT), true);
 check('testSubjectGatesAnyUltimate: Magician gates nothing', testSubjectGatesAnyUltimate(magT), false);
 
+// --- Nexus can only target a real Attack Spell — Shield/Cloaking/Armageddon/Magic Circle all have
+// a `base` object (Shield/Cloaking even have base.damage, for Photon Explosion/Teleport), so a
+// plain `s.base` check isn't enough; must use the same "has a linked Class" test as
+// isUltimateUnlocked. Regression-guards both the dropdown's own filter and nexusAppliesHere's
+// re-validation against a stale/invalid saved nexusSpellId. ---
+reset();
+const nexusArtifact = GAMEDATA.artifacts.find(a => a.name === 'Nexus');
+own('Nexus');
+const shieldSpell = Object.values(GAMEDATA.spells).find(s => s.name === 'Shield');
+state.nexusSpellId = shieldSpell.id;
+state.selectedSpellId = shieldSpell.id;
+r = compute();
+check('Nexus does not apply when nexusSpellId points at Shield (not a real Attack Spell)', r.nexusAppliesHere, false);
+check('Nexus dropdown-eligible spells exclude Shield/Cloaking/Armageddon/Magic Circle', Object.values(GAMEDATA.spells).filter(s => GAMEDATA.classes.school.some(c => c.linkedSpellId === s.id)).some(s => s.name === 'Shield'), false);
+const magicBoltSpell = Object.values(GAMEDATA.spells).find(s => s.name === 'Magic Bolt');
+state.nexusSpellId = magicBoltSpell.id;
+state.selectedSpellId = magicBoltSpell.id;
+r = compute();
+check('Nexus still applies normally for a real Attack Spell (Magic Bolt)', r.nexusAppliesHere, true);
+
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

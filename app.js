@@ -1455,7 +1455,12 @@ function compute() {
   const nexusOwned = NEXUS_ARTIFACT && !!state.bonusSelections[bonusKey({ ...NEXUS_ARTIFACT, category: 'Artifact' })];
   const confluxActive = CONFLUX_SYNERGY && getActiveSynergies().some(s => s.id === CONFLUX_SYNERGY.id);
   const nexusBasePct = 240 * (confluxActive ? 1.5 : 1);
-  const nexusAppliesHere = nexusOwned && state.nexusSpellId === state.selectedSpellId;
+  // Re-validates state.nexusSpellId is still a real Attack Spell (same test as the dropdown's own
+  // filter) rather than trusting it outright — guards against a stale value saved before that
+  // filter existed, or a hand-edited localStorage value, pointing at Shield/Cloaking/Armageddon/
+  // Magic Circle.
+  const nexusSpellValid = state.nexusSpellId != null && GAMEDATA.classes.school.some(c => c.linkedSpellId === state.nexusSpellId);
+  const nexusAppliesHere = nexusOwned && nexusSpellValid && state.nexusSpellId === state.selectedSpellId;
   const nexusMult = nexusAppliesHere ? 1 + nexusBasePct / 100 : 1;
 
   // Space Warp: its explosion damage scales 1:1 with Cloaking's own total Duration multiplier (see
@@ -1712,11 +1717,16 @@ function renderLeftPane() {
           // Patches the value + re-renders only what's downstream (main pane's scaling display,
           // results pane's totals) rather than renderAll() — a full left-pane rebuild would
           // replace this very input mid-keystroke and drop focus, same bug the search boxes had.
+          // saveAutosave() is called directly here since it's the one thing renderAll() would
+          // otherwise have provided (it only touches localStorage, not the DOM, so it's safe
+          // alongside the focus-preserving partial render) — without it, Player Level was live in
+          // the UI but silently never persisted, resetting to 1 on every reload.
           oninput: e => {
             state.playerLevel = Math.max(1, parseInt(e.target.value, 10) || 1);
             playerLevelVal.textContent = String(state.playerLevel);
             renderMainPane();
             renderResultsPane();
+            saveAutosave();
           },
         }),
       ]);
@@ -1770,7 +1780,12 @@ function renderLeftPane() {
         (() => {
           const sel = el('select', { onchange: e => { state.nexusSpellId = e.target.value ? parseInt(e.target.value, 10) : null; renderAll(); } });
           sel.appendChild(el('option', { value: '' }, '— None —'));
-          for (const s of Object.values(GAMEDATA.spells).filter(s => s.base).sort((a, b) => a.name.localeCompare(b.name))) {
+          // Nexus can only target a real Attack Spell — the same "has a linked Class" test used
+          // for Ultimate-unlocking distinguishes this exactly (Shield/Cloaking/Armageddon/Magic
+          // Circle are the 4 utility spells with none). A plain `s.base` check isn't enough: every
+          // spell has a base object, including those 4 (Shield/Cloaking specifically have
+          // base.damage too, for Photon Explosion/Teleport's own use).
+          for (const s of Object.values(GAMEDATA.spells).filter(s => GAMEDATA.classes.school.some(c => c.linkedSpellId === s.id)).sort((a, b) => a.name.localeCompare(b.name))) {
             const opt = el('option', { value: s.id }, s.name);
             if (state.nexusSpellId === s.id) opt.setAttribute('selected', 'selected');
             sel.appendChild(opt);
