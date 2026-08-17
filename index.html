@@ -14319,6 +14319,27 @@ function compute() {
   const effectiveDamageMultVsLarge = effectiveDamageMultiplier(enemyMaxHpReductionVsLarge);
   const effectiveDamageActive = magicSwordOwned || enemyMaxHpReductionGeneralLedger.length > 0 || enemyMaxHpReductionElitePct !== 0 || enemyMaxHpReductionLargePct !== 0;
 
+  // Oculus (Artifact): Crit Rate +1% per 30% Item Pickup Range — reads the pool without depleting
+  // it. Must run BEFORE critChance is finalized below (a real bug this used to have: it ran after,
+  // so its own contribution reached critChancePct's displayed total but never actually fed the
+  // critChance value the damage formula, Widowmaker, Joker, and Siege Hammer all read — the
+  // displayed "Final Crit Chance (+N%)" parenthetical and the main number silently went out of
+  // sync whenever Oculus/Carnival were owned).
+  const oculusOwned = OCULUS_ARTIFACT && ownsArtifactByName('Oculus');
+  if (oculusOwned && pickupRangePct) {
+    const perUnit = (OCULUS_ARTIFACT.effects[0] && OCULUS_ARTIFACT.effects[0].value) || 1;
+    const amt = Math.round(perUnit * (pickupRangePct / 30) * 100) / 100;
+    if (amt) { critChancePct += amt; ledger.crit.push({ source: 'Oculus (Relic, Item Pickup Range ' + fmtSigned(pickupRangePct) + '%)', text: 'Increase Critical Rate by ' + amt + '%', amount: amt, tag: 'Chance' }); }
+  }
+  // Carnival (Artifact): Crit Rate +1% per 3% Evasion — reads the pool without depleting it. Same
+  // ordering fix as Oculus above.
+  const carnivalOwned = CARNIVAL_ARTIFACT && ownsArtifactByName('Carnival');
+  if (carnivalOwned && evasionPct) {
+    const perUnit = (CARNIVAL_ARTIFACT.effects[0] && CARNIVAL_ARTIFACT.effects[0].value) || 1;
+    const amt = Math.round(perUnit * (evasionPct / 3) * 100) / 100;
+    if (amt) { critChancePct += amt; ledger.crit.push({ source: 'Carnival (Relic, Evasion ' + fmtSigned(evasionPct) + '%)', text: 'Increase Critical Rate by ' + amt + '%', amount: amt, tag: 'Chance' }); }
+  }
+
   // Everything found above (Critical Strike Rate/Multiplier effects) stacks additively on top of
   // the base values, matching how every other %-based pool in this calculator works.
   const critChance = Math.min(100, Math.max(0, PLAYER_BASE_CRIT_CHANCE + critChancePct));
@@ -14545,20 +14566,6 @@ function compute() {
   const maxHpBeforeReduction = PLAYER_BASE_MAX_HP * (1 + maxHpBonusPct / 100);
   const maxHpTotal = maxHpBeforeReduction * Math.max(0, 1 - maxHpReductionPct / 100);
 
-  // Oculus (Artifact): Crit Rate +1% per 30% Item Pickup Range — reads the pool without depleting it.
-  const oculusOwned = OCULUS_ARTIFACT && ownsArtifactByName('Oculus');
-  if (oculusOwned && pickupRangePct) {
-    const perUnit = (OCULUS_ARTIFACT.effects[0] && OCULUS_ARTIFACT.effects[0].value) || 1;
-    const amt = Math.round(perUnit * (pickupRangePct / 30) * 100) / 100;
-    if (amt) { critChancePct += amt; ledger.crit.push({ source: 'Oculus (Relic, Item Pickup Range ' + fmtSigned(pickupRangePct) + '%)', text: 'Increase Critical Rate by ' + amt + '%', amount: amt, tag: 'Chance' }); }
-  }
-  // Carnival (Artifact): Crit Rate +1% per 3% Evasion — reads the pool without depleting it.
-  const carnivalOwned = CARNIVAL_ARTIFACT && ownsArtifactByName('Carnival');
-  if (carnivalOwned && evasionPct) {
-    const perUnit = (CARNIVAL_ARTIFACT.effects[0] && CARNIVAL_ARTIFACT.effects[0].value) || 1;
-    const amt = Math.round(perUnit * (evasionPct / 3) * 100) / 100;
-    if (amt) { critChancePct += amt; ledger.crit.push({ source: 'Carnival (Relic, Evasion ' + fmtSigned(evasionPct) + '%)', text: 'Increase Critical Rate by ' + amt + '%', amount: amt, tag: 'Chance' }); }
-  }
   // Gaia (Artifact): ATK% +3% per 20 (absolute) Max HP — reads the pool without depleting it.
   const gaiaOwned = GAIA_ARTIFACT && ownsArtifactByName('Gaia');
   if (gaiaOwned && maxHpTotal) {

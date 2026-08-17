@@ -1031,5 +1031,16 @@ check('Occult + Gaia: maxHpTotal = 330 (200 base x 1.65)', r.maxHpTotal, 330, 0.
 // Gaia: +3% ATK per 20 Max HP -> 330/20 x 3 = 49.5%
 check('Occult -> Gaia: ATK bonus reflects the Occult-inflated Max HP (49.5%, not just Gaia\'s own 37.5%)', r.atkPct, 49.5, 0.01);
 
+// --- Regression: Oculus/Carnival's crit-chance contributions used to run AFTER critChance was
+// already computed and clamped, so their own bonus reached critChancePct's displayed total but
+// never actually fed critChance itself (silently corrupting Widowmaker/Joker/Siege Hammer, which
+// all read critChance, plus the left sidebar's own "Final Crit Chance (+N%)" display going out of
+// sync with its own parenthetical). Locking in that critChance = clamp(base + critChancePct)
+// always holds exactly, regardless of which crit-chance sources are owned. ---
+reset();
+own('Oculus'); own('Carnival');
+r = compute();
+check('Oculus + Carnival: critChance stays consistent with critChancePct (base 3% + pct, clamped)', r.critChance, Math.min(100, Math.max(0, 3 + r.critChancePct)), 0.001);
+
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);
