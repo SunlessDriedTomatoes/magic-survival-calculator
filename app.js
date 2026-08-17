@@ -1363,13 +1363,18 @@ function compute() {
     ? (egoSwordActive ? 25 : ((MAGIC_SWORD_ARTIFACT.effects[0] && MAGIC_SWORD_ARTIFACT.effects[0].value) || 20))
     : 0;
   const executeThresholdFraction = executeThresholdPct / 100;
-  function effectiveDamageMultiplier(reductionFraction) {
-    const requiredDamageFraction = Math.max(0.0001, (1 - reductionFraction) * (1 - executeThresholdFraction));
-    return 1 / requiredDamageFraction;
+  // requiredDamageFraction is the more intuitive number for display ("you only need to land N% of
+  // the enemy's ORIGINAL Max HP in real damage to kill them") — the multiplier is just its
+  // reciprocal, kept for the actual damage-scaling math.
+  function requiredDamageFraction(reductionFraction) {
+    return Math.max(0.0001, (1 - reductionFraction) * (1 - executeThresholdFraction));
   }
-  const effectiveDamageMultVsNormal = effectiveDamageMultiplier(enemyMaxHpReductionVsNormal);
-  const effectiveDamageMultVsElite = effectiveDamageMultiplier(enemyMaxHpReductionVsElite);
-  const effectiveDamageMultVsLarge = effectiveDamageMultiplier(enemyMaxHpReductionVsLarge);
+  const requiredDamageFractionVsNormal = requiredDamageFraction(enemyMaxHpReductionVsNormal);
+  const requiredDamageFractionVsElite = requiredDamageFraction(enemyMaxHpReductionVsElite);
+  const requiredDamageFractionVsLarge = requiredDamageFraction(enemyMaxHpReductionVsLarge);
+  const effectiveDamageMultVsNormal = 1 / requiredDamageFractionVsNormal;
+  const effectiveDamageMultVsElite = 1 / requiredDamageFractionVsElite;
+  const effectiveDamageMultVsLarge = 1 / requiredDamageFractionVsLarge;
   const effectiveDamageActive = magicSwordOwned || enemyMaxHpReductionGeneralLedger.length > 0 || enemyMaxHpReductionElitePct !== 0 || enemyMaxHpReductionLargePct !== 0;
 
   // Oculus (Artifact): Crit Rate +1% per 30% Item Pickup Range — reads the pool without depleting
@@ -1925,6 +1930,7 @@ function compute() {
     enemyMaxHpReductionElitePct, enemyMaxHpReductionLargePct,
     enemyMaxHpReductionVsNormal, enemyMaxHpReductionVsElite, enemyMaxHpReductionVsLarge,
     effectiveDamageMultVsNormal, effectiveDamageMultVsElite, effectiveDamageMultVsLarge,
+    requiredDamageFractionVsNormal, requiredDamageFractionVsElite, requiredDamageFractionVsLarge,
     expectedEffectiveVsNormal, expectedEffectiveVsElite, expectedEffectiveVsLarge,
     sniperActive, hpGatedAdditionalDamageLedger, hpGatedAdditionalDamageMult, expectedVsHighHp,
     timeGatedAdditionalDamageLedger, timeGatedAdditionalDamageMult, expectedVsSurvived,
@@ -2561,15 +2567,24 @@ function renderResultsPane() {
   if (r.effectiveDamageActive) {
     const edSection = el('div', { class: 'section' });
     edSection.appendChild(el('div', { class: 'section-title' }, 'Effective Damage (vs. enemy Max HP)'));
-    const edRow = (label, reductionFraction, mult, expectedEffective) => el('div', { class: 'ledger-row wrap' }, [
-      el('span', { class: 'lk' }, label),
-      el('span', { class: 'lv' }, fmtSigned(-reductionFraction * 100, 1) + '% Max HP   x' + fmt(mult, 2) + '   ' + fmt(expectedEffective, 1) + ' effective damage'),
+    // Leads with "only need to land N% of original Max HP" — the framing that actually explains
+    // what the multiplier means, rather than the multiplier itself with no context for where it
+    // comes from.
+    const edRow = (label, requiredFraction, mult, expectedEffective) => el('div', { class: 'ledger-row wrap' }, [
+      el('span', { class: 'lk' }, label + ' — only ' + fmt(requiredFraction * 100, 1) + '% of original Max HP required'),
+      el('span', { class: 'lv' }, 'x' + fmt(mult, 2) + '   ' + fmt(expectedEffective, 1) + ' effective damage'),
     ]);
-    edSection.appendChild(edRow('vs. Normal Enemies', r.enemyMaxHpReductionVsNormal, r.effectiveDamageMultVsNormal, r.expectedEffectiveVsNormal));
-    edSection.appendChild(edRow('vs. Elite Monsters', r.enemyMaxHpReductionVsElite, r.effectiveDamageMultVsElite, r.expectedEffectiveVsElite));
-    edSection.appendChild(edRow('vs. Large Monsters', r.enemyMaxHpReductionVsLarge, r.effectiveDamageMultVsLarge, r.expectedEffectiveVsLarge));
+    edSection.appendChild(edRow('vs. Normal Enemies', r.requiredDamageFractionVsNormal, r.effectiveDamageMultVsNormal, r.expectedEffectiveVsNormal));
+    edSection.appendChild(edRow('vs. Elite Monsters', r.requiredDamageFractionVsElite, r.effectiveDamageMultVsElite, r.expectedEffectiveVsElite));
+    edSection.appendChild(edRow('vs. Large Monsters', r.requiredDamageFractionVsLarge, r.effectiveDamageMultVsLarge, r.expectedEffectiveVsLarge));
     if (r.magicSwordOwned) {
-      edSection.appendChild(el('div', { class: 'note' }, 'Execute: Magic Sword instakills enemies below ' + fmt(r.executeThresholdPct, 0) + '% HP' + (r.egoSwordActive ? ' (raised from 20% by Ego Sword)' : '') + ' (already included above).'));
+      // Spells out the cascade concretely (using the Normal-enemy numbers as the worked example,
+      // since the reduction% is the only thing that varies by enemy type — Execute's own mechanism
+      // is identical for all three): reduction removes its share first, then Execute removes its
+      // own share of what's LEFT, not of the original 100%.
+      const remainingAfterReduction = 1 - r.enemyMaxHpReductionVsNormal;
+      const executeOwnShareOfOriginal = remainingAfterReduction * r.executeThresholdPct / 100;
+      edSection.appendChild(el('div', { class: 'note' }, 'Magic Sword\'s Execute (vs. Normal enemies as the example): Max HP reduction alone leaves ' + fmt(remainingAfterReduction * 100, 1) + '% of the enemy\'s original Max HP needing real damage. Execute instakills enemies below ' + fmt(r.executeThresholdPct, 0) + '%' + (r.egoSwordActive ? ' (raised from 20% by Ego Sword)' : '') + ' of THAT remaining amount — cutting ' + fmt(executeOwnShareOfOriginal * 100, 1) + '% more off the original total, for ' + fmt(r.requiredDamageFractionVsNormal * 100, 1) + '% required overall.'));
     }
     if (r.occultOwned) {
       edSection.appendChild(el('div', { class: 'note' }, 'Occult: +' + fmt(r.enemyMaxHpReductionGeneralFraction * 100, 1) + '% Max HP (from the general reduction pool total, already included in your Max HP above).'));
