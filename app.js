@@ -2573,7 +2573,11 @@ function renderResultsPane() {
     // comes from.
     const edRow = (label, requiredFraction, mult, expectedEffective) => el('div', { class: 'ledger-row wrap' }, [
       el('span', { class: 'lk' }, label + ' — only ' + fmt(requiredFraction * 100, 1) + '% of original Max HP required'),
-      el('span', { class: 'lv' }, 'x' + fmt(mult, 2) + '   ' + fmt(expectedEffective, 1) + ' effective damage'),
+      el('span', { class: 'lv' }, [
+        'x' + fmt(mult, 2) + '   ',
+        el('span', { class: 'dmg-figure' }, fmt(expectedEffective, 1)),
+        ' effective damage',
+      ]),
     ]);
     edSection.appendChild(edRow('vs. Normal Enemies', r.requiredDamageFractionVsNormal, r.effectiveDamageMultVsNormal, r.expectedEffectiveVsNormal));
     edSection.appendChild(edRow('vs. Elite Monsters', r.requiredDamageFractionVsElite, r.effectiveDamageMultVsElite, r.expectedEffectiveVsElite));
@@ -2640,19 +2644,19 @@ function renderResultsPane() {
   // Active synergies (auto-triggered by owned artifacts) — damage-irrelevant ones (pure utility/QoL,
   // e.g. Elixir's Life Orb HP Recovery) are excluded, see synergyAffectsDamage.
   const activeSynergies = getActiveSynergies().filter(synergyAffectsDamage);
-  const synSection = el('div', { class: 'section' });
-  synSection.appendChild(el('div', { class: 'section-title' }, 'Active Synergies'));
-  if (!activeSynergies.length) {
-    synSection.appendChild(el('div', { class: 'note' }, 'None triggered — synergies activate automatically once you\'ve selected all of their required relics.'));
-  }
-  for (const syn of activeSynergies) {
-    const noop = synergyNoopViaLeniency(syn);
-    synSection.appendChild(el('div', { style: 'margin-bottom:8px;' }, [
-      el('div', { class: 'pi-name' }, syn.name + (noop ? ' (no benefit — see below)' : '')),
-      el('div', { class: 'pi-desc' }, descriptionNodes(syn.description, syn.effects)),
-      noop ? el('div', { class: 'note', style: 'color:var(--crit);' }, 'Counted as met via Magnum Opus, but gives no benefit — the missing piece is exactly what this synergy modifies.') : null,
-    ]));
-  }
+  const synSection = collapsibleSection('syn', 'Active Synergies', (synSection) => {
+    if (!activeSynergies.length) {
+      synSection.appendChild(el('div', { class: 'note' }, 'None triggered — synergies activate automatically once you\'ve selected all of their required relics.'));
+    }
+    for (const syn of activeSynergies) {
+      const noop = synergyNoopViaLeniency(syn);
+      synSection.appendChild(el('div', { style: 'margin-bottom:8px;' }, [
+        el('div', { class: 'pi-name' }, syn.name + (noop ? ' (no benefit — see below)' : '')),
+        el('div', { class: 'pi-desc' }, descriptionNodes(syn.description, syn.effects)),
+        noop ? el('div', { class: 'note', style: 'color:var(--crit);' }, 'Counted as met via Magnum Opus, but gives no benefit — the missing piece is exactly what this synergy modifies.') : null,
+      ]));
+    }
+  });
   pane.appendChild(synSection);
 
   // Contribution sources
