@@ -2574,7 +2574,7 @@ function renderResultsPane() {
       cmSection.appendChild(el('div', { class: 'note' }, 'Siege Hammer: +' + fmt(r.siegeHammerPct, 0) + '% Additional Damage on non-crit hits only — already weighted into the expected damage above by your crit chance, not a separate scenario.'));
     }
     if (r.jokerOwned) {
-      cmSection.appendChild(el('div', { class: 'note' }, 'Joker: ' + fmt(r.jokerProcChance * 100, 1) + '% chance per crit to double the bonus portion of your crit multiplier — already weighted into the expected damage above. Unverified against the game\'s actual logic; modeled from a community-reported description, not the raw extracted text.'));
+      cmSection.appendChild(el('div', { class: 'note' }, 'Joker: ' + fmt(r.jokerProcChance * 100, 1) + '% chance per crit to double the bonus portion of your crit multiplier — already weighted into the expected damage above.'));
     }
     pane.appendChild(cmSection);
   }
