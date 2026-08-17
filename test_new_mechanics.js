@@ -1045,5 +1045,33 @@ own('Oculus'); own('Carnival');
 r = compute();
 check('Oculus + Carnival: critChance stays consistent with critChancePct (base 3% + pct, clamped)', r.critChance, Math.min(100, Math.max(0, 3 + r.critChancePct)), 0.001);
 
+// --- Imp: "Increase Normal Wave Monsters' Max HP by 10%" / "Reduce Boss Wave Monsters' Max HP by
+// 10%" — a phrasing classifyEffect never matched (different pattern than the general/Elite/Large
+// regexes), so it silently did nothing. First Max-HP modifier that's an INCREASE, not a reduction;
+// tracked in the same signed convention (positive = reduction, negative = a real increase) as the
+// existing pools so it composes through the identical formula with no special-casing. ---
+reset();
+own('Imp');
+r = compute();
+check('Imp: Boss Wave pool = 10 (a real reduction)', r.enemyMaxHpModBossWavePct, 10);
+check('Imp: Normal Wave pool = -10 (a real increase, negative in the reduction convention)', r.enemyMaxHpModNormalWavePct, -10);
+check('Imp: vs-Boss-Wave required fraction = 0.90 (10% reduction alone)', r.requiredDamageFractionVsBossWave, 0.90, 0.001);
+// Normal Wave: reductionFraction = -0.10 (an increase) -> required = 1 - (-0.10) = 1.10 (need MORE
+// than the original 100% Max HP in real damage, since the enemy now has more HP than base).
+check('Imp: vs-Normal-Wave required fraction = 1.10 (a real 10% Max HP increase, not a reduction)', r.requiredDamageFractionVsNormalWave, 1.10, 0.001);
+check('Imp: vs-Boss-Wave Effective Damage multiplier = 1 / 0.90', r.effectiveDamageMultVsBossWave, 1 / 0.90, 0.001);
+check('Imp: vs-Normal-Wave Effective Damage multiplier = 1 / 1.10 (less than 1x, a real penalty)', r.effectiveDamageMultVsNormalWave, 1 / 1.10, 0.001);
+
+// Order-independence check: layering Boss Wave on top of an existing general-pool reduction gives
+// the identical result regardless of which pool is "applied first" — pure multiplication commutes.
+reset();
+own('Imp'); own('Basilisk'); // general pool -10%, Boss Wave -10% (its own separate pool)
+r = compute();
+const generalRemaining = 1 - r.enemyMaxHpReductionGeneralFraction; // 0.90
+const bossWaveOwnRemaining = 1 - (r.enemyMaxHpModBossWavePct / 100); // 0.90
+const expectedCombined = 1 - generalRemaining * bossWaveOwnRemaining;
+check('Imp + Basilisk: vs-Boss-Wave combines both pools multiplicatively, order-independent', r.enemyMaxHpReductionVsBossWave, expectedCombined, 0.0001);
+check('Imp + Basilisk: vs-Boss-Wave combined = 0.19 (1 - 0.9x0.9)', r.enemyMaxHpReductionVsBossWave, 0.19, 0.0001);
+
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

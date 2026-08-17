@@ -991,6 +991,17 @@ function classifyEffect(effect, spellName) {
   if (/^(Decrease|Reduce) \[Max HP\] of \[Large Monsters\] by /.test(text)) {
     return { kind: 'enemyMaxHpReductionLarge', amount: Math.abs(effect.value) };
   }
+  // Boss Wave / Normal Wave Monsters' Max HP (Imp) — a different phrasing entirely (possessive
+  // apostrophe-s, no "[Max HP]"/"of" bracket form) than the three above, and the first Max-HP
+  // modifier that's an INCREASE rather than a reduction. Tracked in the same signed "reduction%"
+  // convention as the pools above (positive = reduction, negative = a real increase) so it composes
+  // through the identical 1 - (1-a)*(1-b) formula without any special-casing downstream.
+  if (/^Reduce Boss Wave Monsters' Max HP by [\d.]+%/.test(text)) {
+    return { kind: 'enemyMaxHpModBossWave', amount: Math.abs(effect.value) };
+  }
+  if (/^Increase Normal Wave Monsters' Max HP by [\d.]+%/.test(text)) {
+    return { kind: 'enemyMaxHpModNormalWave', amount: -Math.abs(effect.value) };
+  }
   // Mana Acquisition% — general only, the stat that actually feeds Abyss's conversion. "Increase
   // Mana Acquisition FROM KILLING ENEMIES by N%" (Exorcism) is a narrower, separate bonus excluded
   // by construction (the literal "by" here never immediately follows "Acquisition" for that
@@ -1301,6 +1312,7 @@ function compute() {
   // Enemy-side Max HP reduction — general pool tracked as a ledger too (not just a running sum),
   // since Venom needs each individual source's own % to build its multiplicative product.
   let enemyMaxHpReductionElitePct = 0, enemyMaxHpReductionLargePct = 0;
+  let enemyMaxHpModBossWavePct = 0, enemyMaxHpModNormalWavePct = 0;
   const enemyMaxHpReductionGeneralLedger = [];
   const cooldownLedger = [];
   const allMagicCooldownLedger = [];
@@ -1332,6 +1344,8 @@ function compute() {
     else if (c.kind === 'enemyMaxHpReductionGeneral') { enemyMaxHpReductionGeneralLedger.push({ source, amount: c.amount }); }
     else if (c.kind === 'enemyMaxHpReductionElite') { enemyMaxHpReductionElitePct += c.amount; }
     else if (c.kind === 'enemyMaxHpReductionLarge') { enemyMaxHpReductionLargePct += c.amount; }
+    else if (c.kind === 'enemyMaxHpModBossWave') { enemyMaxHpModBossWavePct += c.amount; }
+    else if (c.kind === 'enemyMaxHpModNormalWave') { enemyMaxHpModNormalWavePct += c.amount; }
   }
 
   // Venom (Synergy) converts the general pool from additive summing to multiplicative compounding
@@ -1351,6 +1365,14 @@ function compute() {
   const enemyMaxHpReductionVsNormal = enemyMaxHpReductionGeneralFraction;
   const enemyMaxHpReductionVsElite = 1 - (1 - enemyMaxHpReductionGeneralFraction) * (1 - enemyMaxHpReductionEliteFraction);
   const enemyMaxHpReductionVsLarge = 1 - (1 - enemyMaxHpReductionGeneralFraction) * (1 - enemyMaxHpReductionLargeFraction);
+  // Boss Wave / Normal Wave (Imp) — same layering as Elite/Large above, its own independent
+  // multiplicative factor on top of the general pool. Negative fractions (Imp's own Normal Wave
+  // side is a real +10% Max HP INCREASE) fall out of the identical formula correctly: 1 - (-0.10) =
+  // 1.10, a 110% remaining-HP factor, with no special-casing needed anywhere downstream.
+  const enemyMaxHpModBossWaveFraction = enemyMaxHpModBossWavePct / 100;
+  const enemyMaxHpModNormalWaveFraction = enemyMaxHpModNormalWavePct / 100;
+  const enemyMaxHpReductionVsBossWave = 1 - (1 - enemyMaxHpReductionGeneralFraction) * (1 - enemyMaxHpModBossWaveFraction);
+  const enemyMaxHpReductionVsNormalWave = 1 - (1 - enemyMaxHpReductionGeneralFraction) * (1 - enemyMaxHpModNormalWaveFraction);
 
   // Occult: dynamic self-referential effect (see OCCULT_ARTIFACT comment above) — grants the player
   // a Max HP bonus equal to the general pool's fully-resolved % (including Venom's transform and
@@ -1380,10 +1402,14 @@ function compute() {
   const requiredDamageFractionVsNormal = requiredDamageFraction(enemyMaxHpReductionVsNormal);
   const requiredDamageFractionVsElite = requiredDamageFraction(enemyMaxHpReductionVsElite);
   const requiredDamageFractionVsLarge = requiredDamageFraction(enemyMaxHpReductionVsLarge);
+  const requiredDamageFractionVsBossWave = requiredDamageFraction(enemyMaxHpReductionVsBossWave);
+  const requiredDamageFractionVsNormalWave = requiredDamageFraction(enemyMaxHpReductionVsNormalWave);
   const effectiveDamageMultVsNormal = 1 / requiredDamageFractionVsNormal;
   const effectiveDamageMultVsElite = 1 / requiredDamageFractionVsElite;
   const effectiveDamageMultVsLarge = 1 / requiredDamageFractionVsLarge;
-  const effectiveDamageActive = magicSwordOwned || enemyMaxHpReductionGeneralLedger.length > 0 || enemyMaxHpReductionElitePct !== 0 || enemyMaxHpReductionLargePct !== 0;
+  const effectiveDamageMultVsBossWave = 1 / requiredDamageFractionVsBossWave;
+  const effectiveDamageMultVsNormalWave = 1 / requiredDamageFractionVsNormalWave;
+  const effectiveDamageActive = magicSwordOwned || enemyMaxHpReductionGeneralLedger.length > 0 || enemyMaxHpReductionElitePct !== 0 || enemyMaxHpReductionLargePct !== 0 || enemyMaxHpModBossWavePct !== 0 || enemyMaxHpModNormalWavePct !== 0;
 
   // Oculus (Artifact): Crit Rate +1% per 30% Item Pickup Range — reads the pool without depleting
   // it. Must run BEFORE critChance is finalized below (a real bug this used to have: it ran after,
@@ -1912,6 +1938,8 @@ function compute() {
   const expectedEffectiveVsNormal = expected != null ? expected * effectiveDamageMultVsNormal : null;
   const expectedEffectiveVsElite = expected != null ? expected * effectiveDamageMultVsElite : null;
   const expectedEffectiveVsLarge = expected != null ? expected * effectiveDamageMultVsLarge : null;
+  const expectedEffectiveVsBossWave = expected != null ? expected * effectiveDamageMultVsBossWave : null;
+  const expectedEffectiveVsNormalWave = expected != null ? expected * effectiveDamageMultVsNormalWave : null;
 
   return {
     spell, ATK, ATKPreTitan, AMP, MDMG, xMultTotal, xMults, base, nonCrit, crit, expected,
@@ -1937,9 +1965,14 @@ function compute() {
     enemyMaxHpReductionGeneralPct, enemyMaxHpReductionGeneralFraction,
     enemyMaxHpReductionElitePct, enemyMaxHpReductionLargePct,
     enemyMaxHpReductionVsNormal, enemyMaxHpReductionVsElite, enemyMaxHpReductionVsLarge,
+    enemyMaxHpReductionVsBossWave, enemyMaxHpReductionVsNormalWave,
+    enemyMaxHpModBossWavePct, enemyMaxHpModNormalWavePct,
     effectiveDamageMultVsNormal, effectiveDamageMultVsElite, effectiveDamageMultVsLarge,
+    effectiveDamageMultVsBossWave, effectiveDamageMultVsNormalWave,
     requiredDamageFractionVsNormal, requiredDamageFractionVsElite, requiredDamageFractionVsLarge,
+    requiredDamageFractionVsBossWave, requiredDamageFractionVsNormalWave,
     expectedEffectiveVsNormal, expectedEffectiveVsElite, expectedEffectiveVsLarge,
+    expectedEffectiveVsBossWave, expectedEffectiveVsNormalWave,
     sniperActive, hpGatedAdditionalDamageLedger, hpGatedAdditionalDamageMult, expectedVsHighHp,
     timeGatedAdditionalDamageLedger, timeGatedAdditionalDamageMult, expectedVsSurvived,
     siegeHammerOwned, siegeHammerPct, nonCritWithSiegeHammer,
@@ -2590,6 +2623,13 @@ function renderResultsPane() {
     edSection.appendChild(edRow('vs. Normal Enemies', r.requiredDamageFractionVsNormal, r.effectiveDamageMultVsNormal, r.expectedEffectiveVsNormal));
     edSection.appendChild(edRow('vs. Elite Monsters', r.requiredDamageFractionVsElite, r.effectiveDamageMultVsElite, r.expectedEffectiveVsElite));
     edSection.appendChild(edRow('vs. Large Monsters', r.requiredDamageFractionVsLarge, r.effectiveDamageMultVsLarge, r.expectedEffectiveVsLarge));
+    // Boss Wave / Normal Wave (Imp) — a narrower scope than Normal/Elite/Large (currently the only
+    // item touching it at all), so only shown once it's actually contributing rather than always
+    // appearing as a 3rd/4th/5th redundant-when-empty row.
+    if (r.enemyMaxHpModBossWavePct !== 0 || r.enemyMaxHpModNormalWavePct !== 0) {
+      edSection.appendChild(edRow('vs. Boss Wave Monsters', r.requiredDamageFractionVsBossWave, r.effectiveDamageMultVsBossWave, r.expectedEffectiveVsBossWave));
+      edSection.appendChild(edRow('vs. Normal Wave Monsters', r.requiredDamageFractionVsNormalWave, r.effectiveDamageMultVsNormalWave, r.expectedEffectiveVsNormalWave));
+    }
     if (r.magicSwordOwned) {
       // Spells out the cascade concretely (using the Normal-enemy numbers as the worked example,
       // since the reduction% is the only thing that varies by enemy type — Execute's own mechanism
@@ -2604,6 +2644,9 @@ function renderResultsPane() {
     }
     if (r.venomOwned) {
       edSection.appendChild(el('div', { class: 'note' }, 'Venom: the general pool above compounds multiplicatively across its sources instead of adding, per its own "x1.15" effect.'));
+    }
+    if (r.enemyMaxHpModBossWavePct !== 0 || r.enemyMaxHpModNormalWavePct !== 0) {
+      edSection.appendChild(el('div', { class: 'note' }, 'Imp: -' + fmt(r.enemyMaxHpModBossWavePct, 0) + '% Max HP vs. Boss Wave Monsters, +' + fmt(-r.enemyMaxHpModNormalWavePct, 0) + '% vs. Normal Wave Monsters — its own separate pool, layered on top of the general pool above rather than folded into it.'));
     }
     pane.appendChild(edSection);
   }
