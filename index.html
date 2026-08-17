@@ -15797,15 +15797,17 @@ function row(k, v, total, keyClass) {
 
 // Collapse/expand state for the results pane's collapsible sections/subsections — deliberately NOT
 // part of `state` (never saved/loaded/exported), since it's an ephemeral display preference, not
-// build data. Keyed by a caller-chosen id, defaults to expanded (false/absent) so nothing looks
-// different from before until the user actively collapses something. Resets on page reload.
+// build data. Keyed by a caller-chosen id. Defaults to COLLAPSED (anything other than an explicit
+// `false` counts as collapsed) — a section only stays open once the user has explicitly clicked it
+// open. Resets on page reload.
 const uiCollapsed = {};
-function toggleCollapsed(id) { uiCollapsed[id] = !uiCollapsed[id]; renderResultsPane(); }
+function isCollapsed(id) { return uiCollapsed[id] !== false; }
+function toggleCollapsed(id) { uiCollapsed[id] = !isCollapsed(id); renderResultsPane(); }
 // Top-level collapsible section (e.g. Player Stats) — same look as a normal `.section-title`, just
 // clickable, with an arrow indicating state.
 function collapsibleSection(id, title, buildContentFn) {
   const sec = el('div', { class: 'section' });
-  const collapsed = !!uiCollapsed[id];
+  const collapsed = isCollapsed(id);
   sec.appendChild(el('div', { class: 'section-title collapsible', onclick: () => toggleCollapsed(id) }, [
     el('span', { class: 'collapse-arrow' }, collapsed ? '▸' : '▾'),
     el('span', {}, title),
@@ -15817,7 +15819,7 @@ function collapsibleSection(id, title, buildContentFn) {
 // section title, with an optional source count so a collapsed group still shows how much it holds.
 function collapsibleSubsection(parent, id, title, count, buildContentFn, colorClass) {
   const sub = el('div', { class: 'subsection' });
-  const collapsed = !!uiCollapsed[id];
+  const collapsed = isCollapsed(id);
   sub.appendChild(el('div', { class: 'subsection-title' + (colorClass ? ' ' + colorClass : ''), onclick: () => toggleCollapsed(id) }, [
     el('span', { class: 'collapse-arrow' }, collapsed ? '▸' : '▾'),
     el('span', {}, title),
