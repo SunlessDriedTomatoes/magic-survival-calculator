@@ -275,16 +275,51 @@ const MATRIX_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Matrix') || nul
 const AGI_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'AGI') || null;
 // "Additional Damage" is its own distinct multiplicative tag per the confirmed damage formula —
 // "each source of additional damage is a separate damage tag" (multiplied together, not summed) —
-// separate from the additive Magic Damage pool. Nearly every "X% additional Damage" effect in the
-// dataset is conditional on live combat state this calculator has no model for (enemy HP%, crit/
-// non-crit, boss waves, survival time — e.g. Guillotine, Rose, Ballista, Sniper, Siege Hammer,
-// Brand, Butcher), so those stay unclassified/'other' rather than being applied unconditionally.
-// Robot and Excalibur are the two clean exceptions: flat, always-on, unconditional bonuses with no
-// combat-state trigger in their own text (Excalibur's own aura applies to "enemies within its
-// range" with no HP/crit/timing gate at all, confirmed against real gameplay), so those are the
-// only two wired up here.
+// separate from the additive Magic Damage pool. Effects conditional on live combat state this
+// calculator has no visibility into (enemy HP%, boss waves, kill counts — e.g. Butcher) still stay
+// unclassified/'other'. But two conditional SHAPES turned out to be genuinely computable, not
+// requiring a live simulation, and are handled below instead of excluded outright:
+// - Enemy-HP%-gated (Guillotine/Rose/Ballista/Sniper) and time-survived-gated (Brand): the
+//   condition itself still can't be known live, but the bonus IS a well-defined number once the
+//   condition holds, so it's shown as a separate "Conditional Modifiers" scenario multiplier on
+//   top of the main expected-damage figure, rather than folded into it unconditionally.
+// - Non-crit-gated (Siege Hammer): unlike the above, this condition's PROBABILITY is already a
+//   build stat this calculator tracks (crit chance) — real hits are crits or non-crits with known
+//   odds — so it's folded directly into the expected-damage weighting below, the same way crit
+//   chance/crit multiplier already are, rather than treated as an unknowable live condition.
+// Robot and Excalibur are flat, always-on, unconditional bonuses with no combat-state trigger in
+// their own text at all (Excalibur's own aura applies to "enemies within its range" with no HP/
+// crit/timing gate, confirmed against real gameplay), so those feed the main additionalDamageMult
+// directly rather than a conditional one.
 const ROBOT_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Robot') || null;
 const EXCALIBUR_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Excalibur') || null;
+// Guillotine/Rose/Ballista (Artifacts) + Sniper (Synergy): all "Deal N% additional Damage to
+// enemies whose HP is 75% or above" (effect id 93), the same Additional Damage bucket Robot/
+// Excalibur use, just gated on a condition the calculator can't know live. Sniper is confirmed a
+// genuine additional +25% on top of its own required artifacts' bonuses (Ballista/Guillotine/Rose
+// are 3 of its 4 requirements, each already granting this effect themselves), not restated flavor
+// text — verified by checking each requirement's own raw effects directly.
+const GUILLOTINE_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Guillotine') || null;
+const ROSE_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Rose') || null;
+const BALLISTA_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Ballista') || null;
+const SNIPER_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Sniper') || null;
+// Brand (Artifact): "Deal 15% Additional Damage to enemies that have survived for more than 5s" —
+// same conditional-Additional-Damage shape as the HP%-gated group above, just time-gated instead.
+const BRAND_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Brand') || null;
+// Siege Hammer (Artifact): "Deal 20% Additional Damage if an attack is NOT a Critical Strike" (plus
+// its own separate, always-on "+20% Critical Strike Multiplier" line, which already reaches the
+// general critMult regex on its own — no special-casing needed for that half). The non-crit
+// condition's own probability is already tracked (1 - critChance), so this folds directly into the
+// expected-damage weighting rather than becoming a conditional scenario like the group above.
+const SIEGE_HAMMER_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Siege Hammer') || null;
+// Joker (Artifact): raw extracted text is vague ("50% chance to stack 1 additional multiplier when
+// landing a Critical Strike") and the decompiled IL2CPP dump only has a bare state field
+// (JokerTriggerVar, no method body) — no way to independently verify the precise mechanic. Modeled
+// per the user's own community-sourced description instead: chance = min(50%, critChance / 2) per
+// crit to double the BONUS portion of the crit multiplier (critMulti - 200) an additional time,
+// not the flat 200% base itself. UNVERIFIED against the actual game logic — flagged as such
+// wherever it's surfaced.
+const JOKER_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Joker') || null;
 // Enemy Max HP reduction — three independently-tracked additive pools (general/Elite/Large,
 // confirmed via raw effect ids 54/143/83), feeding Effective Damage together with Execute
 // thresholds below. Venom (Synergy) converts ONLY the general pool from additive summing to
@@ -1387,6 +1422,39 @@ function compute() {
   let additionalDamageMult = 1;
   for (const a of additionalDamageLedger) additionalDamageMult *= (1 + a.pct / 100);
 
+  // Conditional Additional Damage — same multiplicative-per-source combination as the always-on
+  // ledger above, but kept separate since these only apply when their own condition holds (not
+  // baked into the main expected-damage figure). Two independent conditions, each its own ledger.
+  const hpGatedAdditionalDamageLedger = [];
+  if (GUILLOTINE_ARTIFACT && ownsArtifactByName('Guillotine')) {
+    const pct = (GUILLOTINE_ARTIFACT.effects[0] && GUILLOTINE_ARTIFACT.effects[0].value) || 15;
+    hpGatedAdditionalDamageLedger.push({ source: 'Guillotine (Relic)', pct });
+  }
+  if (ROSE_ARTIFACT && ownsArtifactByName('Rose')) {
+    const pct = (ROSE_ARTIFACT.effects[0] && ROSE_ARTIFACT.effects[0].value) || 10;
+    hpGatedAdditionalDamageLedger.push({ source: 'Rose (Relic)', pct });
+  }
+  if (BALLISTA_ARTIFACT && ownsArtifactByName('Ballista')) {
+    const eff = BALLISTA_ARTIFACT.effects.find(e => /additional Damage/i.test(e.text || ''));
+    const pct = (eff && eff.value) || 50;
+    hpGatedAdditionalDamageLedger.push({ source: 'Ballista (Relic)', pct });
+  }
+  const sniperActive = SNIPER_SYNERGY && getActiveSynergies().some(s => s.id === SNIPER_SYNERGY.id);
+  if (sniperActive) {
+    const pct = (SNIPER_SYNERGY.effects[0] && SNIPER_SYNERGY.effects[0].value) || 25;
+    hpGatedAdditionalDamageLedger.push({ source: 'Sniper (Synergy)', pct });
+  }
+  let hpGatedAdditionalDamageMult = 1;
+  for (const a of hpGatedAdditionalDamageLedger) hpGatedAdditionalDamageMult *= (1 + a.pct / 100);
+
+  const timeGatedAdditionalDamageLedger = [];
+  if (BRAND_ARTIFACT && ownsArtifactByName('Brand')) {
+    const pct = (BRAND_ARTIFACT.effects[0] && BRAND_ARTIFACT.effects[0].value) || 15;
+    timeGatedAdditionalDamageLedger.push({ source: 'Brand (Relic, survived >5s)', pct });
+  }
+  let timeGatedAdditionalDamageMult = 1;
+  for (const a of timeGatedAdditionalDamageLedger) timeGatedAdditionalDamageMult *= (1 + a.pct / 100);
+
   // Transcendence (Artifact): +15% All Magic Damage per currently-active spell that's at its own
   // max level — additive into the same mdmgPct pool as any other "Increase All Magic Damage"
   // source, since its own text uses that exact framing ("All Magic Damage increases by 15%").
@@ -1461,7 +1529,14 @@ function compute() {
   // for Arbiter's own manual push later, which never carries the ' (Fusion)' tag anyway — so this
   // check is safe to run here, before mdmgPct/MDMG are finalized below.
   const comboDamageApplies = comboDamagePct !== 0 && xMults.some(x => x.source.endsWith(' (Fusion)'));
-  if (comboDamageApplies) mdmgPct += comboDamagePct;
+  if (comboDamageApplies) {
+    mdmgPct += comboDamagePct;
+    // Pushed into the same ledger.mdmg every other Magic Damage source uses, rather than a
+    // separately-styled block — Active Sources previously showed this with its own purple
+    // "stat-combo" color/format instead of the standard AMD tag every other contributor gets,
+    // which read as inconsistent even though the underlying math was already correctly bucketed.
+    for (const c of comboLedger) ledger.mdmg.push({ source: c.source, text: c.source, amount: c.amount });
+  }
 
   // Accelerator (Artifact): "Decrease All Magic Cooldown by 1% for every 3% of Movement Speed
   // Increase" — a computed CDR contribution (like Overmind/DEM's penalty above), so it's pushed
@@ -1754,13 +1829,37 @@ function compute() {
   // constant — well-defined since multiplication commutes.
   const nonCritWithoutTitan = base != null && titanOwned ? base * ATKPreTitan * AMP * MDMG * demMult * classMult * additionalDamageMult * xMultTotal : null;
   const titanDelta = nonCritWithoutTitan != null ? nonCrit - nonCritWithoutTitan : null;
-  const critMultFactor = critMulti / 100;
+  // Joker: chance = min(50%, critChance / 2) per crit to double the BONUS portion of the crit
+  // multiplier (critMulti - 200) an additional time, not the flat 200% base — folded directly into
+  // critMultFactor as an expected value across that chance, same treatment as crit chance/crit
+  // multiplier themselves already get. See JOKER_ARTIFACT above: unverified against actual game
+  // logic, modeled per the user's own community-sourced description.
+  const jokerOwned = JOKER_ARTIFACT && ownsArtifactByName('Joker');
+  const jokerProcChance = jokerOwned ? Math.min(50, critChance / 2) / 100 : 0;
+  const critMultiWithJoker = jokerOwned ? critMulti + jokerProcChance * (critMulti - 200) : critMulti;
+  const critMultFactor = critMultiWithJoker / 100;
   const crit = nonCrit != null ? nonCrit * critMultFactor : null;
   // Heartbreaker's delta: same idea as titanDelta — recompute crit with the pre-Heartbreaker crit
   // multiplier substituted in, holding nonCrit constant.
   const critWithoutHeartbreaker = nonCrit != null && heartbreakerActive ? nonCrit * (critMultiPreHeartbreaker / 100) : null;
   const heartbreakerDelta = critWithoutHeartbreaker != null ? crit - critWithoutHeartbreaker : null;
-  const expected = nonCrit != null ? nonCrit * (1 - critChance / 100) + crit * (critChance / 100) : null;
+  // Siege Hammer: +N% Additional Damage on non-crit hits only — the non-crit condition's own
+  // probability (1 - critChance) is already tracked, so it folds directly into the expected-damage
+  // weighting rather than becoming an unknowable "if this condition holds" scenario like the HP%/
+  // time-gated group above. nonCrit itself (and crit, derived from it) stay untouched — only the
+  // weighted expected value reflects Siege Hammer's bonus.
+  const siegeHammerOwned = SIEGE_HAMMER_ARTIFACT && ownsArtifactByName('Siege Hammer');
+  const siegeHammerPct = siegeHammerOwned
+    ? ((SIEGE_HAMMER_ARTIFACT.effects.find(e => /not a Critical Strike/i.test(e.text || '')) || {}).value || 20)
+    : 0;
+  const nonCritWithSiegeHammer = nonCrit != null ? nonCrit * (1 + siegeHammerPct / 100) : null;
+  const expected = nonCrit != null ? nonCritWithSiegeHammer * (1 - critChance / 100) + crit * (critChance / 100) : null;
+  // Conditional Modifiers — scenario damage figures when the HP%/time-gated Additional Damage
+  // sources' own condition holds. Scaling the already-fully-computed expected value directly is
+  // exactly equivalent to baking the factor into nonCrit/crit from the start (multiplication is
+  // associative), so no need to recompute the whole formula for each scenario.
+  const expectedVsHighHp = expected != null && hpGatedAdditionalDamageLedger.length ? expected * hpGatedAdditionalDamageMult : null;
+  const expectedVsSurvived = expected != null && timeGatedAdditionalDamageLedger.length ? expected * timeGatedAdditionalDamageMult : null;
 
   return {
     spell, ATK, ATKPreTitan, AMP, MDMG, xMultTotal, xMults, base, nonCrit, crit, expected,
@@ -1785,6 +1884,10 @@ function compute() {
     enemyMaxHpReductionElitePct, enemyMaxHpReductionLargePct,
     enemyMaxHpReductionVsNormal, enemyMaxHpReductionVsElite, enemyMaxHpReductionVsLarge,
     effectiveDamageMultVsNormal, effectiveDamageMultVsElite, effectiveDamageMultVsLarge,
+    sniperActive, hpGatedAdditionalDamageLedger, hpGatedAdditionalDamageMult, expectedVsHighHp,
+    timeGatedAdditionalDamageLedger, timeGatedAdditionalDamageMult, expectedVsSurvived,
+    siegeHammerOwned, siegeHammerPct, nonCritWithSiegeHammer,
+    jokerOwned, jokerProcChance, critMultiWithJoker,
   };
 }
 
@@ -2416,7 +2519,7 @@ function renderResultsPane() {
   if (r.effectiveDamageActive) {
     const edSection = el('div', { class: 'section' });
     edSection.appendChild(el('div', { class: 'section-title' }, 'Effective Damage (vs. enemy Max HP)'));
-    const edRow = (label, reductionFraction, mult) => el('div', { class: 'ledger-row' }, [
+    const edRow = (label, reductionFraction, mult) => el('div', { class: 'ledger-row wrap' }, [
       el('span', { class: 'lk' }, label),
       el('span', { class: 'lv' }, fmtSigned(-reductionFraction * 100, 1) + '% Max HP   x' + fmt(mult, 2) + ' Effective Damage'),
     ]);
@@ -2433,6 +2536,47 @@ function renderResultsPane() {
       edSection.appendChild(el('div', { class: 'note' }, 'Venom: the general pool above compounds multiplicatively across its sources instead of adding, per its own "x1.15" effect.'));
     }
     pane.appendChild(edSection);
+  }
+
+  // Conditional Modifiers — HP%-gated (Guillotine/Rose/Ballista/Sniper) and time-gated (Brand)
+  // Additional Damage, plus Siege Hammer/Joker's own probability-weighted effects. The HP%/time
+  // conditions can't be known live, so they're shown as separate "if this holds" scenario figures
+  // rather than folded into the main expected-damage number above; Siege Hammer/Joker's conditions
+  // ARE already probability-weighted into that main figure (their own known-stat odds), so they get
+  // an explanatory note here instead of their own scenario row.
+  const hasConditionalModifiers = r.hpGatedAdditionalDamageLedger.length || r.timeGatedAdditionalDamageLedger.length || r.siegeHammerOwned || r.jokerOwned;
+  if (hasConditionalModifiers) {
+    const cmSection = el('div', { class: 'section' });
+    cmSection.appendChild(el('div', { class: 'section-title' }, 'Conditional Modifiers'));
+    const cmRow = (label, mult, expectedValue) => el('div', { class: 'ledger-row wrap' }, [
+      el('span', { class: 'lk' }, label),
+      el('span', { class: 'lv' }, '×' + fmt(mult, 3) + '   ' + fmt(expectedValue, 1) + ' expected damage'),
+    ]);
+    if (r.hpGatedAdditionalDamageLedger.length) {
+      cmSection.appendChild(cmRow('vs. enemies ≥75% HP', r.hpGatedAdditionalDamageMult, r.expectedVsHighHp));
+      for (const a of r.hpGatedAdditionalDamageLedger) {
+        cmSection.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
+          el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
+        ]));
+      }
+    }
+    if (r.timeGatedAdditionalDamageLedger.length) {
+      cmSection.appendChild(cmRow('vs. enemies survived >5s', r.timeGatedAdditionalDamageMult, r.expectedVsSurvived));
+      for (const a of r.timeGatedAdditionalDamageLedger) {
+        cmSection.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
+          el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
+        ]));
+      }
+    }
+    if (r.siegeHammerOwned) {
+      cmSection.appendChild(el('div', { class: 'note' }, 'Siege Hammer: +' + fmt(r.siegeHammerPct, 0) + '% Additional Damage on non-crit hits only — already weighted into the expected damage above by your crit chance, not a separate scenario.'));
+    }
+    if (r.jokerOwned) {
+      cmSection.appendChild(el('div', { class: 'note' }, 'Joker: ' + fmt(r.jokerProcChance * 100, 1) + '% chance per crit to double the bonus portion of your crit multiplier — already weighted into the expected damage above. Unverified against the game\'s actual logic; modeled from a community-reported description, not the raw extracted text.'));
+    }
+    pane.appendChild(cmSection);
   }
 
   // Active synergies (auto-triggered by owned artifacts) — damage-irrelevant ones (pure utility/QoL,
@@ -2520,17 +2664,12 @@ function renderResultsPane() {
       ]));
     }
   }
-  if (r.comboLedger.length) {
-    sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk stat-combo' }, 'Combination Magic Damage (' + fmtSigned(r.comboDamagePct) + '%' + (r.comboDamageApplies ? ', added to Magic Damage' : ', no active Fusion multiplier on this spell') + ')'),
-      el('span', { class: 'lv' }, r.comboDamageApplies ? '+' + fmt(r.comboDamagePct, 1) + '%' : '—'),
-    ]));
-    for (const c of r.comboLedger) {
-      sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-        el('span', { class: 'lk', style: 'padding-left:16px;' }, c.source),
-        el('span', { class: 'lv stat-combo' }, '+' + fmt(c.amount, 0) + '%'),
-      ]));
-    }
+  // When comboDamageApplies is true, its sources already appear above via the standard AMD-tagged
+  // ledger.mdmg loop (same tag/color as every other Magic Damage source) — nothing extra to render
+  // here. When it's NOT applying, there's no "source" to list (it isn't contributing right now), so
+  // this stays a plain informational note rather than a styled Active Sources row.
+  if (r.comboLedger.length && !r.comboDamageApplies) {
+    sourceSection.appendChild(el('div', { class: 'note' }, 'Combination Magic Damage (' + fmtSigned(r.comboDamagePct) + '% from ' + r.comboLedger.map(c => c.source).join(', ') + ') — no active Fusion multiplier on this spell, not currently contributing.'));
   }
   pane.appendChild(sourceSection);
   saveAutosave();

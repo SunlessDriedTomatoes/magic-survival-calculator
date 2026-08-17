@@ -326,6 +326,11 @@
   .ledger-row.total { border-bottom: none; border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; font-weight: 600; }
   .ledger-row.total .lk { color: var(--text); }
   .ledger-row.total .lv { color: var(--accent-strong); }
+  /* Effective Damage's rows pack much longer value text ("-56.4% Max HP   x2.29 Effective
+     Damage") than every other .ledger-row user's short numbers, so they wrap onto their own line
+     under the label instead of overflowing the panel's right edge. */
+  .ledger-row.wrap { flex-wrap: wrap; }
+  .ledger-row.wrap .lv { flex-shrink: 1; white-space: normal; text-align: right; }
 
   ::-webkit-scrollbar { width: 9px; height: 9px; }
   ::-webkit-scrollbar-track { background: transparent; }

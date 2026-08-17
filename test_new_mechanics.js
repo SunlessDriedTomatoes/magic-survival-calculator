@@ -955,5 +955,54 @@ check('Ego Sword active once its 4 required artifacts are owned', r.egoSwordActi
 check('Ego Sword: threshold replaced to 25% (not 20+25=45%)', r.executeThresholdPct, 25);
 check('Ego Sword: vs-Normal multiplier = 1 / (1 - 0.25) = 1.3333', r.effectiveDamageMultVsNormal, 1 / 0.75, 0.001);
 
+// --- Conditional Modifiers: HP%-gated (Guillotine/Rose/Ballista/Sniper) and time-gated (Brand)
+// Additional Damage — multiplicative-per-source like Robot/Excalibur, but shown as a separate
+// scenario multiplier on top of expected damage rather than folded in unconditionally, since the
+// condition itself can't be known live. ---
+reset();
+own('Guillotine');
+r = compute();
+check('Guillotine: hpGatedAdditionalDamageMult = 1.15', r.hpGatedAdditionalDamageMult, 1.15, 0.0001);
+check('Guillotine: expectedVsHighHp = expected * 1.15', r.expectedVsHighHp, r.expected * 1.15, 0.01);
+
+reset();
+own('Ballista'); own('Guillotine'); own('Rose'); own('Radar'); // Sniper's 4 required artifacts
+r = compute();
+check('Sniper active once its 4 required artifacts are owned', r.sniperActive, true);
+// Sniper stacks ON TOP of its own required artifacts' bonuses, not restated flavor text:
+// 1.5 (Ballista) * 1.15 (Guillotine) * 1.10 (Rose) * 1.25 (Sniper) = 2.371875
+check('Sniper: hpGatedAdditionalDamageMult = 2.371875 (compounds with its own required artifacts)', r.hpGatedAdditionalDamageMult, 2.371875, 0.0001);
+
+reset();
+own('Brand');
+r = compute();
+check('Brand: timeGatedAdditionalDamageMult = 1.15', r.timeGatedAdditionalDamageMult, 1.15, 0.0001);
+check('Brand: expectedVsSurvived = expected * 1.15', r.expectedVsSurvived, r.expected * 1.15, 0.01);
+
+// --- Siege Hammer: +20% Additional Damage on non-crit hits only, folded into the expected-damage
+// weighting (the non-crit probability is already a tracked stat), plus its own separate +20%
+// Critical Strike Multiplier line (already reaching the general critMult regex on its own). ---
+reset();
+own('Siege Hammer');
+r = compute();
+check('Siege Hammer: siegeHammerPct = 20 (its own raw effect value)', r.siegeHammerPct, 20);
+check('Siege Hammer: nonCritWithSiegeHammer = nonCrit * 1.20', r.nonCritWithSiegeHammer, r.nonCrit * 1.20, 0.01);
+check('Siege Hammer: its own Crit Multiplier line already reaches critMultPct unaided', r.critMultPct, 20);
+
+// --- Joker: unverified against decompiled game logic (only a bare state field exists, no method
+// body) — modeled per the user's own community-sourced description: chance = min(50%, critChance/2)
+// per crit to double the BONUS portion of the crit multiplier only, not the flat 200% base. ---
+reset();
+own('Assassination'); own('Widowmaker'); own('Carnival'); own('Masked Ball'); own('Shadow Cape');
+r = compute();
+const critChanceForJokerTest = r.critChance, critMultiForJokerTest = r.critMulti; // pre-Joker baseline
+own('Joker');
+r = compute();
+check('Joker: does not change critChance or critMulti themselves (only critMultFactor)', r.critChance, critChanceForJokerTest, 0.001);
+const expectedProcChance = Math.min(50, critChanceForJokerTest / 2) / 100;
+const expectedCritMultiWithJoker = critMultiForJokerTest + expectedProcChance * (critMultiForJokerTest - 200);
+check('Joker: jokerProcChance = min(50%, critChance/2) as a fraction', r.jokerProcChance, expectedProcChance, 0.0001);
+check('Joker: critMultiWithJoker = critMulti + procChance x (critMulti - 200), base 200 untouched', r.critMultiWithJoker, expectedCritMultiWithJoker, 0.001);
+
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);
