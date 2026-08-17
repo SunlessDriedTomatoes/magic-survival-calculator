@@ -32,6 +32,10 @@
     --stat-amd: #2dc7db;
     --stat-crit: #f5a623;
     --stat-combo: #8b7cf6;
+    --stat-atk-soft: rgba(76, 217, 100, 0.16);
+    --stat-amp-soft: rgba(217, 84, 201, 0.16);
+    --stat-amd-soft: rgba(45, 199, 219, 0.16);
+    --stat-crit-soft: rgba(245, 166, 35, 0.16);
     --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: "SF Mono", "Cascadia Code", "Consolas", monospace;
@@ -59,6 +63,10 @@
     --stat-amd: #1590a1;
     --stat-crit: #b8760f;
     --stat-combo: #5f4fd1;
+    --stat-atk-soft: rgba(46, 158, 71, 0.12);
+    --stat-amp-soft: rgba(168, 58, 156, 0.12);
+    --stat-amd-soft: rgba(21, 144, 161, 0.12);
+    --stat-crit-soft: rgba(184, 118, 15, 0.12);
   }
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
@@ -84,6 +92,10 @@
       --stat-amd: #1590a1;
       --stat-crit: #b8760f;
       --stat-combo: #5f4fd1;
+      --stat-atk-soft: rgba(46, 158, 71, 0.12);
+      --stat-amp-soft: rgba(168, 58, 156, 0.12);
+      --stat-amd-soft: rgba(21, 144, 161, 0.12);
+      --stat-crit-soft: rgba(184, 118, 15, 0.12);
     }
   }
 
@@ -171,18 +183,38 @@
   .section-title::after {
     content: ""; flex: 1; height: 1px; background: var(--border-soft);
   }
-  .section-title.collapsible { cursor: pointer; user-select: none; }
-  .section-title.collapsible:hover { color: var(--text-dim); }
-  .section-title .collapse-arrow { display: inline-block; width: 8px; flex: none; }
-  .subsection { margin-top: 14px; }
+  /* Collapsible headers are deliberately styled as buttons (chip background, colored left edge,
+     bold text) rather than plain section-title text, so they read as clickable at a glance instead
+     of blending into the surrounding labels. */
+  .section-title.collapsible {
+    cursor: pointer; user-select: none; text-transform: none; letter-spacing: 0.02em;
+    font-size: 13px; font-weight: 700; color: var(--text);
+    background: var(--surface-2); border-left: 3px solid var(--accent);
+    border-radius: 6px; padding: 7px 12px; margin-bottom: 12px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .section-title.collapsible::after { content: none; }
+  .section-title.collapsible:hover { background: var(--surface-3); }
+  .section-title .collapse-arrow { display: inline-block; width: 10px; flex: none; font-size: 10px; color: var(--text-faint); }
+  .subsection { margin-top: 10px; }
   .subsection:first-of-type { margin-top: 0; }
   .subsection-title {
-    font-size: 11.5px; color: var(--text-dim); margin-bottom: 4px;
+    font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em;
+    color: var(--text-dim); background: var(--surface-2); border-left: 3px solid var(--border);
+    border-radius: 6px; padding: 6px 12px; margin-bottom: 6px;
     display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
-  .subsection-title:hover { color: var(--text); }
-  .subsection-title .collapse-arrow { display: inline-block; width: 8px; flex: none; }
-  .subsection-count { color: var(--text-faint); font-weight: 400; }
+  .subsection-title:hover { background: var(--surface-3); }
+  .subsection-title .collapse-arrow { display: inline-block; width: 10px; flex: none; font-size: 10px; color: var(--text-faint); }
+  .subsection-count { color: var(--text-faint); font-weight: 400; margin-left: auto; }
+  /* Stat-category subsections (Active Sources) get their header colored to match the stat tag they
+     hold — same palette used for the ledger-row values themselves (.stat-atk/.stat-amp/etc.), so
+     the color is a consistent visual language across the whole panel, not just this one spot. */
+  .subsection-title.stat-atk { color: var(--stat-atk); background: var(--stat-atk-soft); border-left-color: var(--stat-atk); }
+  .subsection-title.stat-amp { color: var(--stat-amp); background: var(--stat-amp-soft); border-left-color: var(--stat-amp); }
+  .subsection-title.stat-amd { color: var(--stat-amd); background: var(--stat-amd-soft); border-left-color: var(--stat-amd); }
+  .subsection-title.stat-crit { color: var(--stat-crit); background: var(--stat-crit-soft); border-left-color: var(--stat-crit); }
 
   label.field { display: block; margin-bottom: 14px; }
   label.field:last-child { margin-bottom: 0; }

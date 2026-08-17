@@ -2611,7 +2611,7 @@ function renderResultsPane() {
       ]);
       if (r.hpGatedAdditionalDamageLedger.length) {
         cmSection.appendChild(cmRow('vs. enemies ≥75% HP', r.hpGatedAdditionalDamageMult, r.expectedVsHighHp));
-        for (const a of r.hpGatedAdditionalDamageLedger) {
+        for (const a of sortedBySource(r.hpGatedAdditionalDamageLedger)) {
           cmSection.appendChild(el('div', { class: 'ledger-row' }, [
             el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
             el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
@@ -2620,7 +2620,7 @@ function renderResultsPane() {
       }
       if (r.timeGatedAdditionalDamageLedger.length) {
         cmSection.appendChild(cmRow('vs. enemies survived >5s', r.timeGatedAdditionalDamageMult, r.expectedVsSurvived));
-        for (const a of r.timeGatedAdditionalDamageLedger) {
+        for (const a of sortedBySource(r.timeGatedAdditionalDamageLedger)) {
           cmSection.appendChild(el('div', { class: 'ledger-row' }, [
             el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
             el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
@@ -2680,46 +2680,46 @@ function renderResultsPane() {
 
   if (atkLines.length || r.titanOwned) {
     collapsibleSubsection(sourceSection, 'as-atk', 'ATK', atkLines.length + (r.titanOwned ? 1 : 0), (sub) => {
-      for (const l of atkLines) sub.appendChild(lineRow(l.source, 'ATK', 'stat-atk', l.amount));
+      for (const l of sortedBySource(atkLines)) sub.appendChild(lineRow(l.source, 'ATK', 'stat-atk', l.amount));
       // Titan's Power is a fixed 1.5x transform on bonus ATK, not a % contribution to the additive
       // pool above — shown as a flat label rather than a computed damage delta, since the delta
       // scales with the whole build and isn't a meaningful number on its own (see Formula
       // Breakdown's ATK row for how it actually factors into ATK).
       if (r.titanOwned) sub.appendChild(el('div', { class: 'ledger-row' }, [el('span', { class: 'lk' }, "Titan's Power"), el('span', { class: 'lv' }, 'Bonus ATK x1.5')]));
-    });
+    }, 'stat-atk');
   }
   if (ampLines.length) {
     collapsibleSubsection(sourceSection, 'as-amp', 'AMP', ampLines.length, (sub) => {
-      for (const l of ampLines) sub.appendChild(lineRow(l.source, 'AMP', 'stat-amp', l.amount));
-    });
+      for (const l of sortedBySource(ampLines)) sub.appendChild(lineRow(l.source, 'AMP', 'stat-amp', l.amount));
+    }, 'stat-amp');
   }
   if (amdLines.length || comboNotApplying) {
     // Nexus is not shown separately here — it's a normal contributor to the additive Magic Damage
     // pool (see compute()), so it already appears in amdLines like any other AMD source.
     collapsibleSubsection(sourceSection, 'as-amd', 'AMD', amdLines.length + (comboNotApplying ? 1 : 0), (sub) => {
-      for (const l of amdLines) sub.appendChild(lineRow(l.source, 'AMD', 'stat-amd', l.amount));
+      for (const l of sortedBySource(amdLines)) sub.appendChild(lineRow(l.source, 'AMD', 'stat-amd', l.amount));
       // When comboDamageApplies is true, its sources already appear above via the standard
       // AMD-tagged loop (same tag/color as every other Magic Damage source) — nothing extra to
       // render. When it's NOT applying, there's no "source" to list (it isn't contributing right
       // now), so this stays a plain informational note rather than a styled Active Sources row.
       if (comboNotApplying) sub.appendChild(el('div', { class: 'note' }, 'Combination Magic Damage (' + fmtSigned(r.comboDamagePct) + '% from ' + r.comboLedger.map(c => c.source).join(', ') + ') — no active Fusion multiplier on this spell, not currently contributing.'));
-    });
+    }, 'stat-amd');
   }
   if (critChanceLines.length) {
     collapsibleSubsection(sourceSection, 'as-crit-chance', 'Crit Chance', critChanceLines.length, (sub) => {
-      for (const l of critChanceLines) sub.appendChild(lineRow(l.source, 'CRIT-Chance', 'stat-crit', l.amount));
-    });
+      for (const l of sortedBySource(critChanceLines)) sub.appendChild(lineRow(l.source, 'CRIT-Chance', 'stat-crit', l.amount));
+    }, 'stat-crit');
   }
   if (critMultiLines.length || r.heartbreakerActive) {
     collapsibleSubsection(sourceSection, 'as-crit-multi', 'Crit Multiplier', critMultiLines.length + (r.heartbreakerActive ? 1 : 0), (sub) => {
-      for (const l of critMultiLines) sub.appendChild(lineRow(l.source, 'CRIT-Multi', 'stat-crit', l.amount));
+      for (const l of sortedBySource(critMultiLines)) sub.appendChild(lineRow(l.source, 'CRIT-Multi', 'stat-crit', l.amount));
       if (r.heartbreakerActive) {
         sub.appendChild(el('div', { class: 'ledger-row' }, [
           el('span', { class: 'lk' }, 'Heartbreaker (Crit Multi ' + fmt(r.critMultiPreHeartbreaker, 0) + '% → ' + fmt(r.critMulti, 0) + '%, on Crit only)'),
           el('span', { class: 'lv' }, r.heartbreakerDelta != null ? '+' + fmt(r.heartbreakerDelta, 1) : '—'),
         ]));
       }
-    });
+    }, 'stat-crit');
   }
   if (hasOtherMults) {
     const otherMultCount = (r.demActive ? 1 : 0) + (r.classScaling && r.classMult !== 1 ? 1 : 0) + (r.spaceWarpEvoActive ? 1 : 0) + (r.additionalDamageLedger.length ? 1 : 0);
@@ -2747,7 +2747,7 @@ function renderResultsPane() {
           el('span', { class: 'lk' }, 'Additional Damage (multiplicative, ×' + fmt(r.additionalDamageMult, 3) + ' combined)'),
           el('span', { class: 'lv' }, '×' + fmt(r.additionalDamageMult, 3)),
         ]));
-        for (const a of r.additionalDamageLedger) {
+        for (const a of sortedBySource(r.additionalDamageLedger)) {
           sub.appendChild(el('div', { class: 'ledger-row' }, [
             el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
             el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
@@ -2776,21 +2776,21 @@ function renderResultsPane() {
     const psPool = (label, pct, ledgerArr) => {
       if (!ledgerArr.length) return;
       psSection.appendChild(psRow(label, fmtSigned(pct, 1) + '%'));
-      for (const s of ledgerArr) psSection.appendChild(psSourceRow(s.source, s.amount));
+      for (const s of sortedBySource(ledgerArr)) psSection.appendChild(psSourceRow(s.source, s.amount));
     };
     const maxHpSummary = (r.maxHpBonusPct || r.maxHpReductionPct)
       ? '  (' + fmtSigned(r.maxHpBonusPct, 1) + '% bonus' + (r.maxHpReductionPct ? ', -' + fmt(r.maxHpReductionPct, 1) + '% reduction' : '') + ')'
       : ' (base, no bonuses)';
     psSection.appendChild(psRow('Max HP', fmt(r.maxHpTotal, 0) + maxHpSummary));
-    for (const m of r.maxHpBonusLedger) psSection.appendChild(psSourceRow(m.source, m.amount));
-    for (const m of r.maxHpReductionLedgerPlayer) psSection.appendChild(psSourceRow(m.source, -m.amount));
+    for (const m of sortedBySource(r.maxHpBonusLedger)) psSection.appendChild(psSourceRow(m.source, m.amount));
+    for (const m of sortedBySource(r.maxHpReductionLedgerPlayer)) psSection.appendChild(psSourceRow(m.source, -m.amount));
     psPool('Evasion', r.evasionPct, r.evasionLedger);
     psPool('Item Pickup Range', r.pickupRangePct, r.pickupRangeLedger);
     psPool('Movement Speed', r.moveSpeedPct, r.moveSpeedLedger);
     psPool('Mana Acquisition', r.manaAcquisitionPct, r.manaAcquisitionLedger);
     if (r.damageTakenLedger.length) {
       psSection.appendChild(psRow('Damage Reduction', fmt(r.damageReductionPct, 1) + '%'));
-      for (const d of r.damageTakenLedger) psSection.appendChild(psSourceRow(d.source, d.amount));
+      for (const d of sortedBySource(r.damageTakenLedger)) psSection.appendChild(psSourceRow(d.source, d.amount));
     }
   });
   pane.appendChild(psSection);
@@ -2824,16 +2824,22 @@ function collapsibleSection(id, title, buildContentFn) {
 }
 // Subsection within a section (e.g. each Active Sources category) — smaller/dimmer than a full
 // section title, with an optional source count so a collapsed group still shows how much it holds.
-function collapsibleSubsection(parent, id, title, count, buildContentFn) {
+function collapsibleSubsection(parent, id, title, count, buildContentFn, colorClass) {
   const sub = el('div', { class: 'subsection' });
   const collapsed = !!uiCollapsed[id];
-  sub.appendChild(el('div', { class: 'subsection-title', onclick: () => toggleCollapsed(id) }, [
+  sub.appendChild(el('div', { class: 'subsection-title' + (colorClass ? ' ' + colorClass : ''), onclick: () => toggleCollapsed(id) }, [
     el('span', { class: 'collapse-arrow' }, collapsed ? '▸' : '▾'),
     el('span', {}, title),
     el('span', { class: 'subsection-count' }, '(' + count + ')'),
   ]));
   if (!collapsed) buildContentFn(sub);
   parent.appendChild(sub);
+}
+// Alphabetical by source name — the ledger arrays are otherwise ordered by when classifyEffect
+// happened to process them (roughly selection order), which reads as arbitrary once a subsection
+// has more than a couple of entries.
+function sortedBySource(entries) {
+  return [...entries].sort((a, b) => a.source.localeCompare(b.source));
 }
 
 // ===================== Tabs =====================
