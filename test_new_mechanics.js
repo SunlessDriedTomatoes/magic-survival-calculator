@@ -79,9 +79,10 @@ const preHB = compute();
 r = compute();
 check('Heartbreaker active', r.heartbreakerActive, true);
 // Assassination (one of the 5 requirement artifacts) independently grants +25% Critical Strike
-// Multiplier, so the pre-Heartbreaker baseline here is 225%, not the plain 200% base — Heartbreaker
-// then applies its own x1.25 on top of that.
-check('critMultiPreHeartbreaker = 225 (200 base + Assassination +25%)', r.critMultiPreHeartbreaker, 225);
+// Multiplier, and Widowmaker (another requirement) grants its own dynamic Crit Multiplier bonus
+// equal to the player's fully-resolved crit chance — so the pre-Heartbreaker baseline is
+// 200 + 25 + critChance, not just 225. Heartbreaker then applies its own x1.25 on top of that.
+check('critMultiPreHeartbreaker = 200 + Assassination 25 + Widowmaker (= critChance)', r.critMultiPreHeartbreaker, 200 + 25 + r.critChance, 0.001);
 check('Heartbreaker: critMulti = critMultiPreHeartbreaker x1.25', r.critMulti, r.critMultiPreHeartbreaker * 1.25);
 check('Heartbreaker: crit damage scaled, nonCrit unchanged', r.nonCrit, preHB.nonCrit, 0.01);
 
@@ -1003,6 +1004,20 @@ const expectedProcChance = Math.min(50, critChanceForJokerTest / 2) / 100;
 const expectedCritMultiWithJoker = critMultiForJokerTest + expectedProcChance * (critMultiForJokerTest - 200);
 check('Joker: jokerProcChance = min(50%, critChance/2) as a fraction', r.jokerProcChance, expectedProcChance, 0.0001);
 check('Joker: critMultiWithJoker = critMulti + procChance x (critMulti - 200), base 200 untouched', r.critMultiWithJoker, expectedCritMultiWithJoker, 0.001);
+
+// --- Widowmaker: "Increase [Critical Multiplier] by [Critical Rate]" — a dynamic, self-referential
+// effect (raw text is null, same dead-end pattern as Occult's Max HP effect) that grants a Crit
+// Multiplier bonus equal to the player's own fully-resolved crit chance, on top of its own separate
+// flat +10% Critical Strike Rate. ---
+reset();
+own('Widowmaker');
+r = compute();
+check('Widowmaker: its own +10% Critical Strike Rate still works', r.critChancePct, 10);
+check('Widowmaker active', r.widowmakerOwned, true);
+// critChance = base 3% + Widowmaker's own +10% = 13%; critMultPct should include +13 from this
+check('Widowmaker: critChance = 13 (base 3 + its own +10)', r.critChance, 13, 0.001);
+check('Widowmaker: critMultPct = 13 (equal to fully-resolved critChance)', r.critMultPct, 13, 0.001);
+check('Widowmaker: critMulti = 213 (200 base + 13 from Widowmaker)', r.critMulti, 213, 0.001);
 
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

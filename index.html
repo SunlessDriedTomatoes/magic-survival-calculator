@@ -13267,6 +13267,14 @@ const SIEGE_HAMMER_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Siege Ham
 // not the flat 200% base itself. UNVERIFIED against the actual game logic — flagged as such
 // wherever it's surfaced.
 const JOKER_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Joker') || null;
+// Widowmaker (Artifact): "Increase [Critical Multiplier] by [Critical Rate]" (effect id 149, text
+// is null in the raw data — same dead-end pattern as Occult's dynamic Max HP effect) — grants a
+// Critical Multiplier bonus equal to the player's own fully-resolved Critical Rate (e.g. 72% crit
+// chance -> +72% crit multiplier), on top of its own separate flat +10% Critical Strike Rate (id
+// 14, already correctly implemented via the general critChance regex). A derived-from-a-build-stat
+// effect, not a live-combat condition, so it's a normal always-resolvable Active Sources entry —
+// same category as Occult's Max HP bonus, not the Conditional Modifiers group.
+const WIDOWMAKER_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Widowmaker') || null;
 // Enemy Max HP reduction — three independently-tracked additive pools (general/Elite/Large,
 // confirmed via raw effect ids 54/143/83), feeding Effective Damage together with Execute
 // thresholds below. Venom (Synergy) converts ONLY the general pool from additive summing to
@@ -14305,6 +14313,14 @@ function compute() {
   // Everything found above (Critical Strike Rate/Multiplier effects) stacks additively on top of
   // the base values, matching how every other %-based pool in this calculator works.
   const critChance = Math.min(100, Math.max(0, PLAYER_BASE_CRIT_CHANCE + critChancePct));
+  // Widowmaker: Critical Multiplier bonus equal to the player's own fully-resolved Critical Rate
+  // (see WIDOWMAKER_ARTIFACT above) — reads critChance now that it's finalized, feeds the same
+  // additive critMultPct pool every other "+N% Critical Strike Multiplier" source uses.
+  const widowmakerOwned = WIDOWMAKER_ARTIFACT && ownsArtifactByName('Widowmaker');
+  if (widowmakerOwned && critChance) {
+    critMultPct += critChance;
+    ledger.crit.push({ source: 'Widowmaker (Relic, = Critical Rate)', text: 'Increase Critical Multiplier by Critical Rate', amount: critChance, tag: 'Multi' });
+  }
   const critMultiPreHeartbreaker = PLAYER_BASE_CRIT_MULT + critMultPct;
   // Heartbreaker (Synergy): flat x1.25 "Critical Multiplier" — same late-multiplier treatment as
   // Titan's Power on ATK, just applied to the crit multiplier stat instead.
@@ -14834,7 +14850,7 @@ function compute() {
     sniperActive, hpGatedAdditionalDamageLedger, hpGatedAdditionalDamageMult, expectedVsHighHp,
     timeGatedAdditionalDamageLedger, timeGatedAdditionalDamageMult, expectedVsSurvived,
     siegeHammerOwned, siegeHammerPct, nonCritWithSiegeHammer,
-    jokerOwned, jokerProcChance, critMultiWithJoker,
+    jokerOwned, jokerProcChance, critMultiWithJoker, widowmakerOwned,
   };
 }
 
