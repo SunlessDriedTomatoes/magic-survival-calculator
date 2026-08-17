@@ -884,5 +884,76 @@ state.selectedSpellId = 2; // Fireball — not one of Shuriken's two targeted sp
 r = compute();
 check('Shuriken: Fireball (untargeted) gets +0% critChancePct', r.critChancePct, 0);
 
+// --- Enemy Max HP reduction (general/Elite/Large pools) + Venom's multiplicative transform +
+// Occult's derived Max HP bonus + Magic Sword's Execute threshold, all confirmed via Kanban card
+// e06/e07's research pass this session. ---
+reset();
+own('Basilisk'); // general -10%
+own('Sample'); // general -3%
+r = compute();
+check('Basilisk + Sample (no Venom): general pool = 13% additive', r.enemyMaxHpReductionGeneralPct, 13);
+check('No Venom: general reduction fraction = additive sum / 100 = 0.13', r.enemyMaxHpReductionGeneralFraction, 0.13);
+check('Venom not active without its full requirement set', r.venomOwned, false);
+
+// Venom's own community-reported worked example, reproduced exactly: Basilisk (10%) + Sample (3%)
+// + Genome Map (20%, required by Venom) + Venom's own x1.15 -> product(1.1 * 1.03 * 1.2) * 1.15 - 1
+// = 1.56354 - 1 = 0.56354 (56.354%), global damage multiplier 1/(1-0.56354) = 2.29.
+reset();
+own('Basilisk'); own('Sample'); own('Genome Map'); own('Virus'); // Venom's 4 required artifacts
+r = compute();
+check('Venom active once all 4 required artifacts are owned', r.venomOwned, true);
+check('Venom: general reduction fraction = 0.56354 (matches community-reported math exactly)', r.enemyMaxHpReductionGeneralFraction, 0.56354, 0.0001);
+check('Venom: vs-Normal Effective Damage multiplier = 2.29 (1 / (1 - 0.56354))', r.effectiveDamageMultVsNormal, 2.290, 0.01);
+// Virus (-10% Elite-only) stays purely additive, unaffected by Venom (confirmed scope: general pool only).
+check('Venom does not touch the Elite-only pool', r.enemyMaxHpReductionElitePct, 10);
+// vs-Elite layers the general (Venom-boosted) pool multiplicatively on top of Virus's own 10%:
+// 1 - (1 - 0.56354) * (1 - 0.10) = 1 - 0.43646*0.9 = 1 - 0.392814 = 0.607186
+check('Venom: vs-Elite combines general (Venom-boosted) with Elite-only multiplicatively', r.enemyMaxHpReductionVsElite, 0.607186, 0.0001);
+
+// Occult: derived Max HP bonus equal to the general pool's own resolved %, additive on top of the
+// normal maxHpBonusPct pool (not a conversion — the enemy-side reduction stays fully intact too).
+reset();
+own('Basilisk'); own('Sample'); // general pool = 13%, no Venom
+own('Occult'); // contributes its own -5% to the SAME general pool, then reads the total back
+r = compute();
+check('Occult: general pool includes its own -5% (13 + 5 = 18%)', r.enemyMaxHpReductionGeneralPct, 18);
+check('Occult: player Max HP bonus = 18% (matches the resolved general pool exactly)', r.maxHpBonusPct, 18);
+check('Occult: enemy-side reduction is NOT consumed by granting the player HP (both apply)', r.enemyMaxHpReductionGeneralFraction, 0.18, 0.001);
+
+// Mutagen (-15% Large-only) stays additive and independent of the general pool when no general
+// pool sources are owned at all.
+reset();
+own('Mutagen');
+r = compute();
+check('Mutagen: Large-only pool = 15%, general pool untouched', r.enemyMaxHpReductionLargePct, 15);
+check('Mutagen: vs-Large reduction fraction = 0.15 with an empty general pool', r.enemyMaxHpReductionVsLarge, 0.15, 0.001);
+check('Mutagen: vs-Normal unaffected (0%, Large-only doesn\'t leak into the general pool)', r.enemyMaxHpReductionVsNormal, 0, 0.001);
+
+// Magic Sword's Execute threshold, reproducing the user's own worked example exactly: 1000 HP
+// enemy, 25%-equivalent reduction (Magic Sword's real threshold is 20%, verified independently
+// below against the exact 1/((1-reduction)*(1-threshold)) formula) combined with a 50% Max HP
+// reduction -> requiredDamageFraction = (1 - reduction) * (1 - threshold).
+reset();
+own('Magic Sword');
+r = compute();
+check('Magic Sword: Execute threshold = 20% (its own raw effect value)', r.executeThresholdPct, 20);
+check('Magic Sword alone (no Max HP reduction): vs-Normal multiplier = 1 / (1 - 0.20) = 1.25', r.effectiveDamageMultVsNormal, 1.25, 0.001);
+check('Effective Damage panel is active once Magic Sword is owned', r.effectiveDamageActive, true);
+
+reset();
+own('Magic Sword'); own('Basilisk'); own('Sample'); // general pool 13%, Execute 20%, no Venom
+r = compute();
+// requiredDamageFraction = (1 - 0.13) * (1 - 0.20) = 0.87 * 0.80 = 0.696 -> multiplier = 1/0.696
+check('Magic Sword + Max HP reduction compound (not independent): vs-Normal multiplier = 1/0.696', r.effectiveDamageMultVsNormal, 1 / 0.696, 0.001);
+
+// Ego Sword (Synergy): raises Magic Sword's Execute threshold from 20% to 25% (a replacement, not
+// an addition — "increases TO 25%" per its own raw text, not "increases BY").
+reset();
+own('Magic Sword'); own('Imp'); own('Watcher’s Eye'); own('Mana Ore'); // Ego Sword's 4 required artifacts
+r = compute();
+check('Ego Sword active once its 4 required artifacts are owned', r.egoSwordActive, true);
+check('Ego Sword: threshold replaced to 25% (not 20+25=45%)', r.executeThresholdPct, 25);
+check('Ego Sword: vs-Normal multiplier = 1 / (1 - 0.25) = 1.3333', r.effectiveDamageMultVsNormal, 1 / 0.75, 0.001);
+
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

@@ -285,6 +285,36 @@ const AGI_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'AGI') || null;
 // only two wired up here.
 const ROBOT_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Robot') || null;
 const EXCALIBUR_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Excalibur') || null;
+// Enemy Max HP reduction — three independently-tracked additive pools (general/Elite/Large,
+// confirmed via raw effect ids 54/143/83), feeding Effective Damage together with Execute
+// thresholds below. Venom (Synergy) converts ONLY the general pool from additive summing to
+// multiplicative compounding — confirmed against its own raw text ("Max HP Reduction Rate of all
+// enemies 〈x1.15〉") and cross-checked exactly against community-reported math: product(1+r_i) for
+// each general-pool source, with Venom's own 1.15 folded in as one more term in that same product
+// (equivalent to "multiply the whole product by 1.15" since multiplication is associative), minus
+// 1 for the final reduction fraction. Venom's own required artifacts (Genome Map/Basilisk/Sample)
+// are themselves general-pool contributors, so the pool can never be empty when Venom is active —
+// no need to special-case that edge. Elite/Large pools stay purely additive regardless of Venom.
+const VENOM_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Venom') || null;
+// Occult: "Increase [Max HP] by the amount of [All Enemies' Max HP Reduction Rate]" — a dynamic,
+// self-referential effect (raw effect id 84 has no text template at all, so classifyEffect can
+// never resolve it) that grants the PLAYER's own Max HP a bonus equal to the general enemy pool's
+// fully-resolved % (including Venom's transform and Occult's own -5% contribution to that same
+// pool). Purely additive/derived, not a conversion — the enemy-side reduction stays fully intact.
+const OCCULT_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Occult') || null;
+// Magic Sword: "[Instakill] an enemy whose HP is lower than 20%" — the one clean, always-on
+// Execute-threshold effect in the dataset (Reaper's Scythe/Roster are proc-chance or kill-count
+// gated instakills with no HP threshold, so they don't feed Effective Damage the same way — see
+// Kanban card e07). Execute thresholds are a percentage of the enemy's CURRENT max HP, so this
+// compounds with the reduction pools above rather than acting independently: requiredDamageFraction
+// = (1 - reductionFraction) * (1 - executeThresholdFraction), confirmed against the user's own
+// worked example (1000 HP enemy, 25% execute, 50% Max HP reduction -> 375 real HP needed).
+const MAGIC_SWORD_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Magic Sword') || null;
+// Ego Sword (Synergy, requires Magic Sword/Imp/Watcher's Eye/Mana Ore): "The [Execute] threshold
+// of [Magic Sword] increases to 〈25%〉" — a text-only synergy (no structured effects array, same
+// category as Titan/Nexus/Arbiter/Heartbreaker above) that REPLACES Magic Sword's own 20% rather
+// than adding to it, per its own "increases to" (not "increases by") phrasing.
+const EGO_SWORD_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Ego Sword') || null;
 // Transcendence: "For each Active Spell that reaches Max Level, All Magic Damage increases by
 // 15%" — a real, distinct AMD contribution, not just flavor text for Arbiter (the synergy that
 // requires owning Transcendence, among others — already implemented as Arbiter's own x1.25 late
@@ -893,6 +923,23 @@ function classifyEffect(effect, spellName) {
   // rather than folded into the same additive pool.
   if (/^Increase Max HP by [\d.]+%/.test(text)) return { kind: 'maxHp', amount: effect.value };
   if (/^(Reduce|Decrease) Max HP by [\d.]+%/.test(text)) return { kind: 'maxHpReduction', amount: effect.value };
+  // Enemy-side Max HP reduction (ids 54/143/83) — a different stat from the player's own Max HP
+  // above, distinguished by always naming a "[Max HP]" bracketed term and a target (all enemies /
+  // Elite Monsters / Large Monsters), which the player's own "Reduce Max HP by N%" text never has.
+  // effect.value is already stored negative for these three (unlike Undead's positive 25 above), so
+  // amount is normalized to a positive magnitude to match the existing maxHpReduction convention.
+  // Unlike every other regex in this function, these three raw texts keep the un-stripped 〈N%〉
+  // template markup around the number (confirmed against the raw data directly) rather than a bare
+  // "N%" — so the number itself is matched loosely rather than anchored at the string's own end.
+  if (/^(Decrease|Reduce) the \[Max HP\] of all enemies by /.test(text)) {
+    return { kind: 'enemyMaxHpReductionGeneral', amount: Math.abs(effect.value) };
+  }
+  if (/^(Decrease|Reduce) the \[Max HP\] of Elite Monsters by /.test(text)) {
+    return { kind: 'enemyMaxHpReductionElite', amount: Math.abs(effect.value) };
+  }
+  if (/^(Decrease|Reduce) \[Max HP\] of \[Large Monsters\] by /.test(text)) {
+    return { kind: 'enemyMaxHpReductionLarge', amount: Math.abs(effect.value) };
+  }
   // Mana Acquisition% — general only, the stat that actually feeds Abyss's conversion. "Increase
   // Mana Acquisition FROM KILLING ENEMIES by N%" (Exorcism) is a narrower, separate bonus excluded
   // by construction (the literal "by" here never immediately follows "Acquisition" for that
@@ -1195,6 +1242,10 @@ function compute() {
   // stat-conversion relics below (Oculus/Carnival/Gaia/Abyss/Accelerator/Aegis).
   let evasionPct = 0, pickupRangePct = 0, manaAcquisitionPct = 0, moveSpeedPct = 0;
   let maxHpBonusPct = 0, maxHpReductionPct = 0;
+  // Enemy-side Max HP reduction — general pool tracked as a ledger too (not just a running sum),
+  // since Venom needs each individual source's own % to build its multiplicative product.
+  let enemyMaxHpReductionElitePct = 0, enemyMaxHpReductionLargePct = 0;
+  const enemyMaxHpReductionGeneralLedger = [];
   const cooldownLedger = [];
   const allMagicCooldownLedger = [];
   const damageTakenLedger = [];
@@ -1222,7 +1273,52 @@ function compute() {
     else if (c.kind === 'damageTaken') { damageTakenLedger.push({ source, amount: c.amount }); }
     else if (c.kind === 'maxHp') { maxHpBonusPct += c.amount; }
     else if (c.kind === 'maxHpReduction') { maxHpReductionPct += c.amount; }
+    else if (c.kind === 'enemyMaxHpReductionGeneral') { enemyMaxHpReductionGeneralLedger.push({ source, amount: c.amount }); }
+    else if (c.kind === 'enemyMaxHpReductionElite') { enemyMaxHpReductionElitePct += c.amount; }
+    else if (c.kind === 'enemyMaxHpReductionLarge') { enemyMaxHpReductionLargePct += c.amount; }
   }
+
+  // Venom (Synergy) converts the general pool from additive summing to multiplicative compounding
+  // (see VENOM_SYNERGY comment above) — resolved here, before Occult (below) and maxHpTotal (below)
+  // both need the final number. Elite/Large pools always stay additive, confirmed against the
+  // user's own answer to the one open question from this feature's design pass.
+  const venomOwned = VENOM_SYNERGY && getActiveSynergies().some(s => s.id === VENOM_SYNERGY.id);
+  const enemyMaxHpReductionGeneralPct = enemyMaxHpReductionGeneralLedger.reduce((sum, e) => sum + e.amount, 0);
+  const enemyMaxHpReductionGeneralFraction = venomOwned
+    ? enemyMaxHpReductionGeneralLedger.reduce((acc, e) => acc * (1 + e.amount / 100), 1) * 1.15 - 1
+    : enemyMaxHpReductionGeneralPct / 100;
+  const enemyMaxHpReductionEliteFraction = enemyMaxHpReductionElitePct / 100;
+  const enemyMaxHpReductionLargeFraction = enemyMaxHpReductionLargePct / 100;
+  // Type-scoped pools layer multiplicatively on top of the (already-Venom-resolved) general pool —
+  // an Elite/Large enemy is affected by both the general sources AND its own type-specific sources
+  // simultaneously, not just whichever is larger.
+  const enemyMaxHpReductionVsNormal = enemyMaxHpReductionGeneralFraction;
+  const enemyMaxHpReductionVsElite = 1 - (1 - enemyMaxHpReductionGeneralFraction) * (1 - enemyMaxHpReductionEliteFraction);
+  const enemyMaxHpReductionVsLarge = 1 - (1 - enemyMaxHpReductionGeneralFraction) * (1 - enemyMaxHpReductionLargeFraction);
+
+  // Occult: dynamic self-referential effect (see OCCULT_ARTIFACT comment above) — grants the player
+  // a Max HP bonus equal to the general pool's fully-resolved % (including Venom's transform and
+  // Occult's own -5% contribution to that same pool, both already folded into the fraction above).
+  const occultOwned = OCCULT_ARTIFACT && ownsArtifactByName('Occult');
+  if (occultOwned) { maxHpBonusPct += enemyMaxHpReductionGeneralFraction * 100; }
+
+  // Execute (Magic Sword): threshold is a % of the enemy's CURRENT (already-reduced) max HP, so it
+  // compounds with the reduction fractions above rather than acting independently (see
+  // MAGIC_SWORD_ARTIFACT comment above for the confirmed compounding formula).
+  const magicSwordOwned = MAGIC_SWORD_ARTIFACT && ownsArtifactByName('Magic Sword');
+  const egoSwordActive = magicSwordOwned && EGO_SWORD_SYNERGY && getActiveSynergies().some(s => s.id === EGO_SWORD_SYNERGY.id);
+  const executeThresholdPct = magicSwordOwned
+    ? (egoSwordActive ? 25 : ((MAGIC_SWORD_ARTIFACT.effects[0] && MAGIC_SWORD_ARTIFACT.effects[0].value) || 20))
+    : 0;
+  const executeThresholdFraction = executeThresholdPct / 100;
+  function effectiveDamageMultiplier(reductionFraction) {
+    const requiredDamageFraction = Math.max(0.0001, (1 - reductionFraction) * (1 - executeThresholdFraction));
+    return 1 / requiredDamageFraction;
+  }
+  const effectiveDamageMultVsNormal = effectiveDamageMultiplier(enemyMaxHpReductionVsNormal);
+  const effectiveDamageMultVsElite = effectiveDamageMultiplier(enemyMaxHpReductionVsElite);
+  const effectiveDamageMultVsLarge = effectiveDamageMultiplier(enemyMaxHpReductionVsLarge);
+  const effectiveDamageActive = magicSwordOwned || enemyMaxHpReductionGeneralLedger.length > 0 || enemyMaxHpReductionElitePct !== 0 || enemyMaxHpReductionLargePct !== 0;
 
   // Everything found above (Critical Strike Rate/Multiplier effects) stacks additively on top of
   // the base values, matching how every other %-based pool in this calculator works.
@@ -1684,6 +1780,11 @@ function compute() {
     nuclearFusionActive, nuclearFusionMult,
     photonExplosionActive, photonExplosionSizeMult, furnaceActive, furnaceDurationMult, plasmaRayActive, plasmaRayMult, plasmaRayRayCount,
     telekineticSwordActive, telekineticSwordStacks, telekineticSwordMult, superCycloneActive, infernoActive,
+    venomOwned, occultOwned, magicSwordOwned, egoSwordActive, executeThresholdPct, effectiveDamageActive,
+    enemyMaxHpReductionGeneralPct, enemyMaxHpReductionGeneralFraction,
+    enemyMaxHpReductionElitePct, enemyMaxHpReductionLargePct,
+    enemyMaxHpReductionVsNormal, enemyMaxHpReductionVsElite, enemyMaxHpReductionVsLarge,
+    effectiveDamageMultVsNormal, effectiveDamageMultVsElite, effectiveDamageMultVsLarge,
   };
 }
 
@@ -2305,6 +2406,33 @@ function renderResultsPane() {
   }
   if (r.infernoActive) {
     pane.appendChild(el('div', { class: 'note', style: 'padding:0 4px;' }, 'This is the initial/unstacked damage. Inferno\'s own Max Multiplier ramps up toward Damage X30 (Size X2) the more Incineration is cast, but the exact rate isn\'t in the extracted data, so it isn\'t reflected above.'));
+  }
+
+  // Effective Damage — enemy Max HP reduction (general/Elite/Large pools, Venom's multiplicative
+  // transform) and Magic Sword's Execute threshold, both confirmed to compound rather than act
+  // independently. A fundamentally different kind of output from everything above (build-wide and
+  // enemy-type-scoped, not per-spell/per-hit), so it's its own section rather than folded into
+  // Special Modifiers or Active Sources.
+  if (r.effectiveDamageActive) {
+    const edSection = el('div', { class: 'section' });
+    edSection.appendChild(el('div', { class: 'section-title' }, 'Effective Damage (vs. enemy Max HP)'));
+    const edRow = (label, reductionFraction, mult) => el('div', { class: 'ledger-row' }, [
+      el('span', { class: 'lk' }, label),
+      el('span', { class: 'lv' }, fmtSigned(-reductionFraction * 100, 1) + '% Max HP   x' + fmt(mult, 2) + ' Effective Damage'),
+    ]);
+    edSection.appendChild(edRow('vs. Normal Enemies', r.enemyMaxHpReductionVsNormal, r.effectiveDamageMultVsNormal));
+    edSection.appendChild(edRow('vs. Elite Monsters', r.enemyMaxHpReductionVsElite, r.effectiveDamageMultVsElite));
+    edSection.appendChild(edRow('vs. Large Monsters', r.enemyMaxHpReductionVsLarge, r.effectiveDamageMultVsLarge));
+    if (r.magicSwordOwned) {
+      edSection.appendChild(el('div', { class: 'note' }, 'Execute: Magic Sword instakills enemies below ' + fmt(r.executeThresholdPct, 0) + '% HP' + (r.egoSwordActive ? ' (raised from 20% by Ego Sword)' : '') + ' (already included above).'));
+    }
+    if (r.occultOwned) {
+      edSection.appendChild(el('div', { class: 'note' }, 'Occult: +' + fmt(r.enemyMaxHpReductionGeneralFraction * 100, 1) + '% Max HP (from the general reduction pool total, already included in your Max HP above).'));
+    }
+    if (r.venomOwned) {
+      edSection.appendChild(el('div', { class: 'note' }, 'Venom: the general pool above compounds multiplicatively across its sources instead of adding, per its own "x1.15" effect.'));
+    }
+    pane.appendChild(edSection);
   }
 
   // Active synergies (auto-triggered by owned artifacts) — damage-irrelevant ones (pure utility/QoL,
