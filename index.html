@@ -176,13 +176,21 @@
   .section { margin-bottom: 26px; }
   .section:last-child { margin-bottom: 0; }
   .section-title {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.11em;
-    color: var(--text-faint); margin-bottom: 10px;
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+    color: var(--text-dim); margin-bottom: 10px;
     display: flex; align-items: center; gap: 8px;
+  }
+  /* A short colored tick ahead of the label, plus the bumped weight/color above, gives static
+     (non-clickable) section titles more presence than the old plain-faint-text treatment without
+     borrowing the collapsible headers' chip look — that's reserved for things you can actually
+     click, so a static title staying visually distinct from a button is the point, not a gap. */
+  .section-title::before {
+    content: ""; width: 3px; height: 11px; border-radius: 2px; background: var(--accent); flex: none;
   }
   .section-title::after {
     content: ""; flex: 1; height: 1px; background: var(--border-soft);
   }
+  .section-title.collapsible::before { content: none; }
   /* Collapsible headers are deliberately styled as buttons (chip background, colored left edge,
      bold text) rather than plain section-title text, so they read as clickable at a glance instead
      of blending into the surrounding labels. */
