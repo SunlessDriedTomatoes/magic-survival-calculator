@@ -1019,5 +1019,17 @@ check('Widowmaker: critChance = 13 (base 3 + its own +10)', r.critChance, 13, 0.
 check('Widowmaker: critMultPct = 13 (equal to fully-resolved critChance)', r.critMultPct, 13, 0.001);
 check('Widowmaker: critMulti = 213 (200 base + 13 from Widowmaker)', r.critMulti, 213, 0.001);
 
+// --- Occult's derived Max HP bonus flows through to Gaia's ATK-from-Max-HP conversion, not just
+// into the raw maxHpBonusPct number — confirmed end-to-end, not just at the source. ---
+reset();
+own('Basilisk'); own('Occult'); own('Gaia');
+r = compute();
+check('Occult + Basilisk: general pool = 15% (10 + 5)', r.enemyMaxHpReductionGeneralPct, 15);
+// maxHpBonusPct = Gaia's own +50% Max HP + Occult's derived +15% (equal to the resolved pool)
+check('Occult + Gaia: maxHpBonusPct = 65 (Gaia 50 + Occult 15)', r.maxHpBonusPct, 65);
+check('Occult + Gaia: maxHpTotal = 330 (200 base x 1.65)', r.maxHpTotal, 330, 0.01);
+// Gaia: +3% ATK per 20 Max HP -> 330/20 x 3 = 49.5%
+check('Occult -> Gaia: ATK bonus reflects the Occult-inflated Max HP (49.5%, not just Gaia\'s own 37.5%)', r.atkPct, 49.5, 0.01);
+
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);
