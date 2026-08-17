@@ -171,6 +171,18 @@
   .section-title::after {
     content: ""; flex: 1; height: 1px; background: var(--border-soft);
   }
+  .section-title.collapsible { cursor: pointer; user-select: none; }
+  .section-title.collapsible:hover { color: var(--text-dim); }
+  .section-title .collapse-arrow { display: inline-block; width: 8px; flex: none; }
+  .subsection { margin-top: 14px; }
+  .subsection:first-of-type { margin-top: 0; }
+  .subsection-title {
+    font-size: 11.5px; color: var(--text-dim); margin-bottom: 4px;
+    display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  }
+  .subsection-title:hover { color: var(--text); }
+  .subsection-title .collapse-arrow { display: inline-block; width: 8px; flex: none; }
+  .subsection-count { color: var(--text-faint); font-weight: 400; }
 
   label.field { display: block; margin-bottom: 14px; }
   label.field:last-child { margin-bottom: 0; }
@@ -15494,17 +15506,18 @@ function renderResultsPane() {
   if (hasModifiers) {
     modSection.appendChild(row('Combined', 'x' + fmt(r.xMultTotal, 2), true));
   }
-  pane.appendChild(modSection);
-
+  // These all caveat/explain the Special Modifiers figures directly above, so they belong inside
+  // this section rather than floating as orphaned notes between it and whatever section comes next.
   if (r.overmindActive || r.demActive) {
-    pane.appendChild(el('div', { class: 'note', style: 'padding:0 4px;' }, 'Total invested spell levels: ' + r.totalLevels + ' — Overmind/Deus Ex Machina scale off this.'));
+    modSection.appendChild(el('div', { class: 'note' }, 'Total invested spell levels: ' + r.totalLevels + ' — Overmind/Deus Ex Machina scale off this.'));
   }
   if (r.superCycloneActive) {
-    pane.appendChild(el('div', { class: 'note', style: 'padding:0 4px;' }, 'This is the initial/spawn damage. Super Cyclone\'s own Damage Multiplier increases the longer a Cyclone persists, but the exact rate isn\'t in the extracted data, so it isn\'t reflected above.'));
+    modSection.appendChild(el('div', { class: 'note' }, 'This is the initial/spawn damage. Super Cyclone\'s own Damage Multiplier increases the longer a Cyclone persists, but the exact rate isn\'t in the extracted data, so it isn\'t reflected above.'));
   }
   if (r.infernoActive) {
-    pane.appendChild(el('div', { class: 'note', style: 'padding:0 4px;' }, 'This is the initial/unstacked damage. Inferno\'s own Max Multiplier ramps up toward Damage X30 (Size X2) the more Incineration is cast, but the exact rate isn\'t in the extracted data, so it isn\'t reflected above.'));
+    modSection.appendChild(el('div', { class: 'note' }, 'This is the initial/unstacked damage. Inferno\'s own Max Multiplier ramps up toward Damage X30 (Size X2) the more Incineration is cast, but the exact rate isn\'t in the extracted data, so it isn\'t reflected above.'));
   }
+  pane.appendChild(modSection);
 
   // Effective Damage — enemy Max HP reduction (general/Elite/Large pools, Venom's multiplicative
   // transform) and Magic Sword's Execute threshold, both confirmed to compound rather than act
@@ -15550,36 +15563,36 @@ function renderResultsPane() {
   // an explanatory note here instead of their own scenario row.
   const hasConditionalModifiers = r.hpGatedAdditionalDamageLedger.length || r.timeGatedAdditionalDamageLedger.length || r.siegeHammerOwned || r.jokerOwned;
   if (hasConditionalModifiers) {
-    const cmSection = el('div', { class: 'section' });
-    cmSection.appendChild(el('div', { class: 'section-title' }, 'Conditional Modifiers'));
-    const cmRow = (label, mult, expectedValue) => el('div', { class: 'ledger-row wrap' }, [
-      el('span', { class: 'lk' }, label),
-      el('span', { class: 'lv' }, '×' + fmt(mult, 3) + '   ' + fmt(expectedValue, 1) + ' expected damage'),
-    ]);
-    if (r.hpGatedAdditionalDamageLedger.length) {
-      cmSection.appendChild(cmRow('vs. enemies ≥75% HP', r.hpGatedAdditionalDamageMult, r.expectedVsHighHp));
-      for (const a of r.hpGatedAdditionalDamageLedger) {
-        cmSection.appendChild(el('div', { class: 'ledger-row' }, [
-          el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
-          el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
-        ]));
+    const cmSection = collapsibleSection('cm', 'Conditional Modifiers', (cmSection) => {
+      const cmRow = (label, mult, expectedValue) => el('div', { class: 'ledger-row wrap' }, [
+        el('span', { class: 'lk' }, label),
+        el('span', { class: 'lv' }, '×' + fmt(mult, 3) + '   ' + fmt(expectedValue, 1) + ' expected damage'),
+      ]);
+      if (r.hpGatedAdditionalDamageLedger.length) {
+        cmSection.appendChild(cmRow('vs. enemies ≥75% HP', r.hpGatedAdditionalDamageMult, r.expectedVsHighHp));
+        for (const a of r.hpGatedAdditionalDamageLedger) {
+          cmSection.appendChild(el('div', { class: 'ledger-row' }, [
+            el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
+            el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
+          ]));
+        }
       }
-    }
-    if (r.timeGatedAdditionalDamageLedger.length) {
-      cmSection.appendChild(cmRow('vs. enemies survived >5s', r.timeGatedAdditionalDamageMult, r.expectedVsSurvived));
-      for (const a of r.timeGatedAdditionalDamageLedger) {
-        cmSection.appendChild(el('div', { class: 'ledger-row' }, [
-          el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
-          el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
-        ]));
+      if (r.timeGatedAdditionalDamageLedger.length) {
+        cmSection.appendChild(cmRow('vs. enemies survived >5s', r.timeGatedAdditionalDamageMult, r.expectedVsSurvived));
+        for (const a of r.timeGatedAdditionalDamageLedger) {
+          cmSection.appendChild(el('div', { class: 'ledger-row' }, [
+            el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
+            el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
+          ]));
+        }
       }
-    }
-    if (r.siegeHammerOwned) {
-      cmSection.appendChild(el('div', { class: 'note' }, 'Siege Hammer: +' + fmt(r.siegeHammerPct, 0) + '% Additional Damage on non-crit hits only — already weighted into the expected damage above by your crit chance, not a separate scenario.'));
-    }
-    if (r.jokerOwned) {
-      cmSection.appendChild(el('div', { class: 'note' }, 'Joker: ' + fmt(r.jokerProcChance * 100, 1) + '% chance per crit to double the bonus portion of your crit multiplier — already weighted into the expected damage above.'));
-    }
+      if (r.siegeHammerOwned) {
+        cmSection.appendChild(el('div', { class: 'note' }, 'Siege Hammer: +' + fmt(r.siegeHammerPct, 0) + '% Additional Damage on non-crit hits only — already weighted into the expected damage above by your crit chance, not a separate scenario.'));
+      }
+      if (r.jokerOwned) {
+        cmSection.appendChild(el('div', { class: 'note' }, 'Joker: ' + fmt(r.jokerProcChance * 100, 1) + '% chance per crit to double the bonus portion of your crit multiplier — already weighted into the expected damage above.'));
+      }
+    });
     pane.appendChild(cmSection);
   }
 
@@ -15602,78 +15615,105 @@ function renderResultsPane() {
   pane.appendChild(synSection);
 
   // Contribution sources
+  // Active Sources — grouped into per-category collapsible subsections (ATK/AMP/AMD/Crit-Chance/
+  // Crit-Multi/Other Multipliers) so a long build's list doesn't force scrolling through every
+  // category to find one. Each subsection shows a source count in its header even when collapsed.
   const sourceSection = el('div', { class: 'section' });
   sourceSection.appendChild(el('div', { class: 'section-title' }, 'Active Sources'));
-  const allLines = [
-    ...r.ledger.atk.map(x => ({ ...x, tag: 'ATK', cls: 'stat-atk' })),
-    ...r.ledger.amp.map(x => ({ ...x, tag: 'AMP', cls: 'stat-amp' })),
-    ...r.ledger.mdmg.map(x => ({ ...x, tag: 'AMD', cls: 'stat-amd' })),
-    ...r.ledger.crit.map(x => ({ ...x, tag: 'CRIT-' + x.tag, cls: 'stat-crit' })),
-  ];
-  if (!allLines.length) {
+  const lineRow = (source, tag, cls, amount) => el('div', { class: 'ledger-row' }, [
+    el('span', { class: 'lk' }, source),
+    el('span', { class: 'lv ' + cls }, tag + ' ' + fmtSigned(amount, 2) + '%'),
+  ]);
+  const atkLines = r.ledger.atk;
+  const ampLines = r.ledger.amp;
+  const amdLines = r.ledger.mdmg;
+  const critChanceLines = r.ledger.crit.filter(x => x.tag === 'Chance');
+  const critMultiLines = r.ledger.crit.filter(x => x.tag === 'Multi');
+  const comboNotApplying = r.comboLedger.length && !r.comboDamageApplies;
+  const hasOtherMults = r.demActive || (r.classScaling && r.classMult !== 1) || r.spaceWarpEvoActive || r.additionalDamageLedger.length;
+  const nothingActive = !atkLines.length && !r.titanOwned && !ampLines.length && !amdLines.length && !comboNotApplying
+    && !critChanceLines.length && !critMultiLines.length && !r.heartbreakerActive && !hasOtherMults;
+  if (nothingActive) {
     sourceSection.appendChild(el('div', { class: 'note' }, 'No damage-related bonuses active yet — pick upgrades, relics, or a class on the left.'));
   }
-  for (const line of allLines) {
-    sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk' }, line.source),
-      el('span', { class: 'lv ' + line.cls }, line.tag + ' ' + fmtSigned(line.amount, 2) + '%'),
-    ]));
+
+  if (atkLines.length || r.titanOwned) {
+    collapsibleSubsection(sourceSection, 'as-atk', 'ATK', atkLines.length + (r.titanOwned ? 1 : 0), (sub) => {
+      for (const l of atkLines) sub.appendChild(lineRow(l.source, 'ATK', 'stat-atk', l.amount));
+      // Titan's Power is a fixed 1.5x transform on bonus ATK, not a % contribution to the additive
+      // pool above — shown as a flat label rather than a computed damage delta, since the delta
+      // scales with the whole build and isn't a meaningful number on its own (see Formula
+      // Breakdown's ATK row for how it actually factors into ATK).
+      if (r.titanOwned) sub.appendChild(el('div', { class: 'ledger-row' }, [el('span', { class: 'lk' }, "Titan's Power"), el('span', { class: 'lv' }, 'Bonus ATK x1.5')]));
+    });
   }
-  // Titan's Power is a fixed 1.5x transform on bonus ATK, not a % contribution to one of the
-  // additive pools above — shown as a flat label rather than a computed damage delta, since the
-  // delta scales with the whole build and isn't a meaningful number on its own (see Formula
-  // Breakdown's ATK row above for how it actually factors into ATK).
-  if (r.titanOwned) {
-    sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk' }, "Titan's Power"),
-      el('span', { class: 'lv' }, 'Bonus ATK x1.5'),
-    ]));
+  if (ampLines.length) {
+    collapsibleSubsection(sourceSection, 'as-amp', 'AMP', ampLines.length, (sub) => {
+      for (const l of ampLines) sub.appendChild(lineRow(l.source, 'AMP', 'stat-amp', l.amount));
+    });
   }
-  // Nexus is no longer shown here — it's a normal contributor to the additive Magic Damage pool
-  // (see compute()), so it already appears in the main Active Sources list above like any other
-  // "AMD" source, rather than as its own separate multiplicative-modifier row.
-  if (r.heartbreakerActive) {
-    sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk' }, 'Heartbreaker (Crit Multi ' + fmt(r.critMultiPreHeartbreaker, 0) + '% → ' + fmt(r.critMulti, 0) + '%, on Crit only)'),
-      el('span', { class: 'lv' }, r.heartbreakerDelta != null ? '+' + fmt(r.heartbreakerDelta, 1) : '—'),
-    ]));
+  if (amdLines.length || comboNotApplying) {
+    // Nexus is not shown separately here — it's a normal contributor to the additive Magic Damage
+    // pool (see compute()), so it already appears in amdLines like any other AMD source.
+    collapsibleSubsection(sourceSection, 'as-amd', 'AMD', amdLines.length + (comboNotApplying ? 1 : 0), (sub) => {
+      for (const l of amdLines) sub.appendChild(lineRow(l.source, 'AMD', 'stat-amd', l.amount));
+      // When comboDamageApplies is true, its sources already appear above via the standard
+      // AMD-tagged loop (same tag/color as every other Magic Damage source) — nothing extra to
+      // render. When it's NOT applying, there's no "source" to list (it isn't contributing right
+      // now), so this stays a plain informational note rather than a styled Active Sources row.
+      if (comboNotApplying) sub.appendChild(el('div', { class: 'note' }, 'Combination Magic Damage (' + fmtSigned(r.comboDamagePct) + '% from ' + r.comboLedger.map(c => c.source).join(', ') + ') — no active Fusion multiplier on this spell, not currently contributing.'));
+    });
   }
-  if (r.demActive) {
-    sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk' }, 'Deus Ex Machina (' + r.totalLevels + ' levels × 1% = ' + fmt(r.totalLevels * 1, 0) + '%, separate multiplier)'),
-      el('span', { class: 'lv' }, '×' + fmt(r.demMult, 4)),
-    ]));
+  if (critChanceLines.length) {
+    collapsibleSubsection(sourceSection, 'as-crit-chance', 'Crit Chance', critChanceLines.length, (sub) => {
+      for (const l of critChanceLines) sub.appendChild(lineRow(l.source, 'CRIT-Chance', 'stat-crit', l.amount));
+    });
   }
-  if (r.classScaling && r.classMult !== 1) {
-    sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk' }, 'Class multiplier (' + r.classScaling.text + ', separate from Magic Damage)'),
-      el('span', { class: 'lv' }, '×' + fmt(r.classMult, 3)),
-    ]));
+  if (critMultiLines.length || r.heartbreakerActive) {
+    collapsibleSubsection(sourceSection, 'as-crit-multi', 'Crit Multiplier', critMultiLines.length + (r.heartbreakerActive ? 1 : 0), (sub) => {
+      for (const l of critMultiLines) sub.appendChild(lineRow(l.source, 'CRIT-Multi', 'stat-crit', l.amount));
+      if (r.heartbreakerActive) {
+        sub.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk' }, 'Heartbreaker (Crit Multi ' + fmt(r.critMultiPreHeartbreaker, 0) + '% → ' + fmt(r.critMulti, 0) + '%, on Crit only)'),
+          el('span', { class: 'lv' }, r.heartbreakerDelta != null ? '+' + fmt(r.heartbreakerDelta, 1) : '—'),
+        ]));
+      }
+    });
   }
-  if (r.spaceWarpEvoActive) {
-    sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk' }, 'Space Warp (Cloaking Duration ' + fmtSigned(r.cloakingDurationBonusPct) + '%, 1:1 with explosion damage)'),
-      el('span', { class: 'lv' }, '×' + fmt(r.spaceWarpDurationMult, 3)),
-    ]));
-  }
-  if (r.additionalDamageLedger.length) {
-    sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-      el('span', { class: 'lk' }, 'Additional Damage (multiplicative, ×' + fmt(r.additionalDamageMult, 3) + ' combined)'),
-      el('span', { class: 'lv' }, '×' + fmt(r.additionalDamageMult, 3)),
-    ]));
-    for (const a of r.additionalDamageLedger) {
-      sourceSection.appendChild(el('div', { class: 'ledger-row' }, [
-        el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
-        el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
-      ]));
-    }
-  }
-  // When comboDamageApplies is true, its sources already appear above via the standard AMD-tagged
-  // ledger.mdmg loop (same tag/color as every other Magic Damage source) — nothing extra to render
-  // here. When it's NOT applying, there's no "source" to list (it isn't contributing right now), so
-  // this stays a plain informational note rather than a styled Active Sources row.
-  if (r.comboLedger.length && !r.comboDamageApplies) {
-    sourceSection.appendChild(el('div', { class: 'note' }, 'Combination Magic Damage (' + fmtSigned(r.comboDamagePct) + '% from ' + r.comboLedger.map(c => c.source).join(', ') + ') — no active Fusion multiplier on this spell, not currently contributing.'));
+  if (hasOtherMults) {
+    const otherMultCount = (r.demActive ? 1 : 0) + (r.classScaling && r.classMult !== 1 ? 1 : 0) + (r.spaceWarpEvoActive ? 1 : 0) + (r.additionalDamageLedger.length ? 1 : 0);
+    collapsibleSubsection(sourceSection, 'as-other', 'Other Multipliers', otherMultCount, (sub) => {
+      if (r.demActive) {
+        sub.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk' }, 'Deus Ex Machina (' + r.totalLevels + ' levels × 1% = ' + fmt(r.totalLevels * 1, 0) + '%, separate multiplier)'),
+          el('span', { class: 'lv' }, '×' + fmt(r.demMult, 4)),
+        ]));
+      }
+      if (r.classScaling && r.classMult !== 1) {
+        sub.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk' }, 'Class multiplier (' + r.classScaling.text + ', separate from Magic Damage)'),
+          el('span', { class: 'lv' }, '×' + fmt(r.classMult, 3)),
+        ]));
+      }
+      if (r.spaceWarpEvoActive) {
+        sub.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk' }, 'Space Warp (Cloaking Duration ' + fmtSigned(r.cloakingDurationBonusPct) + '%, 1:1 with explosion damage)'),
+          el('span', { class: 'lv' }, '×' + fmt(r.spaceWarpDurationMult, 3)),
+        ]));
+      }
+      if (r.additionalDamageLedger.length) {
+        sub.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk' }, 'Additional Damage (multiplicative, ×' + fmt(r.additionalDamageMult, 3) + ' combined)'),
+          el('span', { class: 'lv' }, '×' + fmt(r.additionalDamageMult, 3)),
+        ]));
+        for (const a of r.additionalDamageLedger) {
+          sub.appendChild(el('div', { class: 'ledger-row' }, [
+            el('span', { class: 'lk', style: 'padding-left:16px;' }, a.source),
+            el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
+          ]));
+        }
+      }
+    });
   }
   pane.appendChild(sourceSection);
 
@@ -15683,35 +15723,35 @@ function renderResultsPane() {
   // actually contributing to the pool itself. Max HP is always shown (a base value exists even
   // with zero relics, same treatment as ATK/AMP in Formula Breakdown); the rest only appear once
   // at least one source contributes, since 0% is uninteresting noise otherwise.
-  const psSection = el('div', { class: 'section' });
-  psSection.appendChild(el('div', { class: 'section-title' }, 'Player Stats'));
-  const psRow = (label, value) => el('div', { class: 'ledger-row' }, [
-    el('span', { class: 'lk' }, label),
-    el('span', { class: 'lv' }, value),
-  ]);
-  const psSourceRow = (source, amount) => el('div', { class: 'ledger-row' }, [
-    el('span', { class: 'lk', style: 'padding-left:16px;' }, source),
-    el('span', { class: 'lv' }, fmtSigned(amount, 1) + '%'),
-  ]);
-  const psPool = (label, pct, ledgerArr) => {
-    if (!ledgerArr.length) return;
-    psSection.appendChild(psRow(label, fmtSigned(pct, 1) + '%'));
-    for (const s of ledgerArr) psSection.appendChild(psSourceRow(s.source, s.amount));
-  };
-  const maxHpSummary = (r.maxHpBonusPct || r.maxHpReductionPct)
-    ? '  (' + fmtSigned(r.maxHpBonusPct, 1) + '% bonus' + (r.maxHpReductionPct ? ', -' + fmt(r.maxHpReductionPct, 1) + '% reduction' : '') + ')'
-    : ' (base, no bonuses)';
-  psSection.appendChild(psRow('Max HP', fmt(r.maxHpTotal, 0) + maxHpSummary));
-  for (const m of r.maxHpBonusLedger) psSection.appendChild(psSourceRow(m.source, m.amount));
-  for (const m of r.maxHpReductionLedgerPlayer) psSection.appendChild(psSourceRow(m.source, -m.amount));
-  psPool('Evasion', r.evasionPct, r.evasionLedger);
-  psPool('Item Pickup Range', r.pickupRangePct, r.pickupRangeLedger);
-  psPool('Movement Speed', r.moveSpeedPct, r.moveSpeedLedger);
-  psPool('Mana Acquisition', r.manaAcquisitionPct, r.manaAcquisitionLedger);
-  if (r.damageTakenLedger.length) {
-    psSection.appendChild(psRow('Damage Reduction', fmt(r.damageReductionPct, 1) + '%'));
-    for (const d of r.damageTakenLedger) psSection.appendChild(psSourceRow(d.source, d.amount));
-  }
+  const psSection = collapsibleSection('ps', 'Player Stats', (psSection) => {
+    const psRow = (label, value) => el('div', { class: 'ledger-row' }, [
+      el('span', { class: 'lk' }, label),
+      el('span', { class: 'lv' }, value),
+    ]);
+    const psSourceRow = (source, amount) => el('div', { class: 'ledger-row' }, [
+      el('span', { class: 'lk', style: 'padding-left:16px;' }, source),
+      el('span', { class: 'lv' }, fmtSigned(amount, 1) + '%'),
+    ]);
+    const psPool = (label, pct, ledgerArr) => {
+      if (!ledgerArr.length) return;
+      psSection.appendChild(psRow(label, fmtSigned(pct, 1) + '%'));
+      for (const s of ledgerArr) psSection.appendChild(psSourceRow(s.source, s.amount));
+    };
+    const maxHpSummary = (r.maxHpBonusPct || r.maxHpReductionPct)
+      ? '  (' + fmtSigned(r.maxHpBonusPct, 1) + '% bonus' + (r.maxHpReductionPct ? ', -' + fmt(r.maxHpReductionPct, 1) + '% reduction' : '') + ')'
+      : ' (base, no bonuses)';
+    psSection.appendChild(psRow('Max HP', fmt(r.maxHpTotal, 0) + maxHpSummary));
+    for (const m of r.maxHpBonusLedger) psSection.appendChild(psSourceRow(m.source, m.amount));
+    for (const m of r.maxHpReductionLedgerPlayer) psSection.appendChild(psSourceRow(m.source, -m.amount));
+    psPool('Evasion', r.evasionPct, r.evasionLedger);
+    psPool('Item Pickup Range', r.pickupRangePct, r.pickupRangeLedger);
+    psPool('Movement Speed', r.moveSpeedPct, r.moveSpeedLedger);
+    psPool('Mana Acquisition', r.manaAcquisitionPct, r.manaAcquisitionLedger);
+    if (r.damageTakenLedger.length) {
+      psSection.appendChild(psRow('Damage Reduction', fmt(r.damageReductionPct, 1) + '%'));
+      for (const d of r.damageTakenLedger) psSection.appendChild(psSourceRow(d.source, d.amount));
+    }
+  });
   pane.appendChild(psSection);
   saveAutosave();
 }
@@ -15721,6 +15761,38 @@ function row(k, v, total, keyClass) {
     el('span', { class: 'lk' + (keyClass ? ' ' + keyClass : '') }, k),
     el('span', { class: 'lv' }, v),
   ]);
+}
+
+// Collapse/expand state for the results pane's collapsible sections/subsections — deliberately NOT
+// part of `state` (never saved/loaded/exported), since it's an ephemeral display preference, not
+// build data. Keyed by a caller-chosen id, defaults to expanded (false/absent) so nothing looks
+// different from before until the user actively collapses something. Resets on page reload.
+const uiCollapsed = {};
+function toggleCollapsed(id) { uiCollapsed[id] = !uiCollapsed[id]; renderResultsPane(); }
+// Top-level collapsible section (e.g. Player Stats) — same look as a normal `.section-title`, just
+// clickable, with an arrow indicating state.
+function collapsibleSection(id, title, buildContentFn) {
+  const sec = el('div', { class: 'section' });
+  const collapsed = !!uiCollapsed[id];
+  sec.appendChild(el('div', { class: 'section-title collapsible', onclick: () => toggleCollapsed(id) }, [
+    el('span', { class: 'collapse-arrow' }, collapsed ? '▸' : '▾'),
+    el('span', {}, title),
+  ]));
+  if (!collapsed) buildContentFn(sec);
+  return sec;
+}
+// Subsection within a section (e.g. each Active Sources category) — smaller/dimmer than a full
+// section title, with an optional source count so a collapsed group still shows how much it holds.
+function collapsibleSubsection(parent, id, title, count, buildContentFn) {
+  const sub = el('div', { class: 'subsection' });
+  const collapsed = !!uiCollapsed[id];
+  sub.appendChild(el('div', { class: 'subsection-title', onclick: () => toggleCollapsed(id) }, [
+    el('span', { class: 'collapse-arrow' }, collapsed ? '▸' : '▾'),
+    el('span', {}, title),
+    el('span', { class: 'subsection-count' }, '(' + count + ')'),
+  ]));
+  if (!collapsed) buildContentFn(sub);
+  parent.appendChild(sub);
 }
 
 // ===================== Tabs =====================

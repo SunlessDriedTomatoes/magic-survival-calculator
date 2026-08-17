@@ -171,6 +171,18 @@
   .section-title::after {
     content: ""; flex: 1; height: 1px; background: var(--border-soft);
   }
+  .section-title.collapsible { cursor: pointer; user-select: none; }
+  .section-title.collapsible:hover { color: var(--text-dim); }
+  .section-title .collapse-arrow { display: inline-block; width: 8px; flex: none; }
+  .subsection { margin-top: 14px; }
+  .subsection:first-of-type { margin-top: 0; }
+  .subsection-title {
+    font-size: 11.5px; color: var(--text-dim); margin-bottom: 4px;
+    display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  }
+  .subsection-title:hover { color: var(--text); }
+  .subsection-title .collapse-arrow { display: inline-block; width: 8px; flex: none; }
+  .subsection-count { color: var(--text-faint); font-weight: 400; }
 
   label.field { display: block; margin-bottom: 14px; }
   label.field:last-child { margin-bottom: 0; }
