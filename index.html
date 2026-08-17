@@ -14232,6 +14232,11 @@ function compute() {
   // stat-conversion relics below (Oculus/Carnival/Gaia/Abyss/Accelerator/Aegis).
   let evasionPct = 0, pickupRangePct = 0, manaAcquisitionPct = 0, moveSpeedPct = 0;
   let maxHpBonusPct = 0, maxHpReductionPct = 0;
+  // Per-source ledgers for the pools above, purely for display (Player Stats section below) — the
+  // running sums (evasionPct etc.) stay the source of truth every stat-conversion relic already
+  // reads from, these just mirror the same additions so their breakdown is visible somewhere.
+  const evasionLedger = [], pickupRangeLedger = [], manaAcquisitionLedger = [], moveSpeedLedger = [];
+  const maxHpBonusLedger = [], maxHpReductionLedgerPlayer = [];
   // Enemy-side Max HP reduction — general pool tracked as a ledger too (not just a running sum),
   // since Venom needs each individual source's own % to build its multiplicative product.
   let enemyMaxHpReductionElitePct = 0, enemyMaxHpReductionLargePct = 0;
@@ -14256,13 +14261,13 @@ function compute() {
     else if (c.kind === 'duration') { durationPct += c.amount; }
     else if (c.kind === 'durationSpell') { durationSpellPct += c.amount; }
     else if (c.kind === 'count' || c.kind === 'countx') { countFlat += c.amount; }
-    else if (c.kind === 'evasion') { evasionPct += c.amount; }
-    else if (c.kind === 'pickupRange') { pickupRangePct += c.amount; }
-    else if (c.kind === 'manaAcquisition') { manaAcquisitionPct += c.amount; }
-    else if (c.kind === 'moveSpeed') { moveSpeedPct += c.amount; }
+    else if (c.kind === 'evasion') { evasionPct += c.amount; evasionLedger.push({ source, amount: c.amount }); }
+    else if (c.kind === 'pickupRange') { pickupRangePct += c.amount; pickupRangeLedger.push({ source, amount: c.amount }); }
+    else if (c.kind === 'manaAcquisition') { manaAcquisitionPct += c.amount; manaAcquisitionLedger.push({ source, amount: c.amount }); }
+    else if (c.kind === 'moveSpeed') { moveSpeedPct += c.amount; moveSpeedLedger.push({ source, amount: c.amount }); }
     else if (c.kind === 'damageTaken') { damageTakenLedger.push({ source, amount: c.amount }); }
-    else if (c.kind === 'maxHp') { maxHpBonusPct += c.amount; }
-    else if (c.kind === 'maxHpReduction') { maxHpReductionPct += c.amount; }
+    else if (c.kind === 'maxHp') { maxHpBonusPct += c.amount; maxHpBonusLedger.push({ source, amount: c.amount }); }
+    else if (c.kind === 'maxHpReduction') { maxHpReductionPct += c.amount; maxHpReductionLedgerPlayer.push({ source, amount: c.amount }); }
     else if (c.kind === 'enemyMaxHpReductionGeneral') { enemyMaxHpReductionGeneralLedger.push({ source, amount: c.amount }); }
     else if (c.kind === 'enemyMaxHpReductionElite') { enemyMaxHpReductionElitePct += c.amount; }
     else if (c.kind === 'enemyMaxHpReductionLarge') { enemyMaxHpReductionLargePct += c.amount; }
@@ -14290,7 +14295,11 @@ function compute() {
   // a Max HP bonus equal to the general pool's fully-resolved % (including Venom's transform and
   // Occult's own -5% contribution to that same pool, both already folded into the fraction above).
   const occultOwned = OCCULT_ARTIFACT && ownsArtifactByName('Occult');
-  if (occultOwned) { maxHpBonusPct += enemyMaxHpReductionGeneralFraction * 100; }
+  if (occultOwned) {
+    const occultAmt = enemyMaxHpReductionGeneralFraction * 100;
+    maxHpBonusPct += occultAmt;
+    maxHpBonusLedger.push({ source: 'Occult (Relic, = Max HP Reduction Rate)', amount: occultAmt });
+  }
 
   // Execute (Magic Sword): threshold is a % of the enemy's CURRENT (already-reduced) max HP, so it
   // compounds with the reduction fractions above rather than acting independently (see
@@ -14836,6 +14845,8 @@ function compute() {
     sizePct, durationPct, allMagicCooldownPct, matrixOwned, matrixContribution, agiActive,
     additionalDamageLedger, additionalDamageMult, transcendenceOwned, maxedSpellCount, wizardsHatOwned,
     evasionPct, pickupRangePct, manaAcquisitionPct, moveSpeedPct, maxHpTotal, maxHpBonusPct, maxHpReductionPct,
+    evasionLedger, pickupRangeLedger, manaAcquisitionLedger, moveSpeedLedger, maxHpBonusLedger, maxHpReductionLedgerPlayer,
+    damageTakenLedger,
     damageReductionPct, oculusOwned, carnivalOwned, gaiaOwned, abyssOwned, acceleratorOwned, aegisOwned,
     akashicRecordOwned, magicWandOwned, otherworldlyTentacleOwned,
     spaceWarpEvoActive, cloakingDurationBonusPct, spaceWarpDurationMult, durationSpellPct,
@@ -15635,6 +15646,43 @@ function renderResultsPane() {
     sourceSection.appendChild(el('div', { class: 'note' }, 'Combination Magic Damage (' + fmtSigned(r.comboDamagePct) + '% from ' + r.comboLedger.map(c => c.source).join(', ') + ') — no active Fusion multiplier on this spell, not currently contributing.'));
   }
   pane.appendChild(sourceSection);
+
+  // Player Stats — the "hidden" input pools that feed stat-conversion relics (Oculus/Carnival/
+  // Gaia/Abyss/Accelerator/Aegis), previously only visible indirectly through each conversion
+  // relic's own single summary line (e.g. "Gaia (Relic, Max HP 330)") with no breakdown of what's
+  // actually contributing to the pool itself. Max HP is always shown (a base value exists even
+  // with zero relics, same treatment as ATK/AMP in Formula Breakdown); the rest only appear once
+  // at least one source contributes, since 0% is uninteresting noise otherwise.
+  const psSection = el('div', { class: 'section' });
+  psSection.appendChild(el('div', { class: 'section-title' }, 'Player Stats'));
+  const psRow = (label, value) => el('div', { class: 'ledger-row' }, [
+    el('span', { class: 'lk' }, label),
+    el('span', { class: 'lv' }, value),
+  ]);
+  const psSourceRow = (source, amount) => el('div', { class: 'ledger-row' }, [
+    el('span', { class: 'lk', style: 'padding-left:16px;' }, source),
+    el('span', { class: 'lv' }, fmtSigned(amount, 1) + '%'),
+  ]);
+  const psPool = (label, pct, ledgerArr) => {
+    if (!ledgerArr.length) return;
+    psSection.appendChild(psRow(label, fmtSigned(pct, 1) + '%'));
+    for (const s of ledgerArr) psSection.appendChild(psSourceRow(s.source, s.amount));
+  };
+  const maxHpSummary = (r.maxHpBonusPct || r.maxHpReductionPct)
+    ? '  (' + fmtSigned(r.maxHpBonusPct, 1) + '% bonus' + (r.maxHpReductionPct ? ', -' + fmt(r.maxHpReductionPct, 1) + '% reduction' : '') + ')'
+    : ' (base, no bonuses)';
+  psSection.appendChild(psRow('Max HP', fmt(r.maxHpTotal, 0) + maxHpSummary));
+  for (const m of r.maxHpBonusLedger) psSection.appendChild(psSourceRow(m.source, m.amount));
+  for (const m of r.maxHpReductionLedgerPlayer) psSection.appendChild(psSourceRow(m.source, -m.amount));
+  psPool('Evasion', r.evasionPct, r.evasionLedger);
+  psPool('Item Pickup Range', r.pickupRangePct, r.pickupRangeLedger);
+  psPool('Movement Speed', r.moveSpeedPct, r.moveSpeedLedger);
+  psPool('Mana Acquisition', r.manaAcquisitionPct, r.manaAcquisitionLedger);
+  if (r.damageTakenLedger.length) {
+    psSection.appendChild(psRow('Damage Reduction', fmt(r.damageReductionPct, 1) + '%'));
+    for (const d of r.damageTakenLedger) psSection.appendChild(psSourceRow(d.source, d.amount));
+  }
+  pane.appendChild(psSection);
   saveAutosave();
 }
 
