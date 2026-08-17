@@ -13820,14 +13820,22 @@ function describeLineNode(line, effects) {
   const resolved = resolveDisplayText(line);
   const match = (effects || []).find(e => e.text && resolveDisplayText(e.text) === resolved);
   const cls = match ? effectStatColorClass(match) : null;
-  return cls ? el('span', { class: cls }, resolved) : resolved;
+  if (cls) return el('span', { class: cls }, resolved);
+  // No exact structured-effect match — text-only synergies (Titan, Nexus, Arbiter, Heartbreaker,
+  // Monarch, AGI) have no `effects` array at all, so this is the only path that ever colors their
+  // descriptions. Falls back to per-keyword highlighting instead of leaving the whole line plain.
+  return highlightStatKeywords(resolved);
 }
-// Joins a description array into display nodes, coloring each line via describeLineNode.
+// Joins a description array into display nodes, coloring each line via describeLineNode. Each line
+// can come back as either a single node/string (exact effect match) or an array of nodes/strings
+// (keyword-highlighted fallback) — spread rather than pushed, so el()'s children list stays flat.
 function descriptionNodes(description, effects) {
   const nodes = [];
   description.forEach((line, i) => {
     if (i > 0) nodes.push(' — ');
-    nodes.push(describeLineNode(line, effects));
+    const lineNodes = describeLineNode(line, effects);
+    if (Array.isArray(lineNodes)) nodes.push(...lineNodes);
+    else nodes.push(lineNodes);
   });
   return nodes;
 }
