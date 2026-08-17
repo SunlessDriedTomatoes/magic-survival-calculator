@@ -1892,6 +1892,13 @@ function compute() {
   // associative), so no need to recompute the whole formula for each scenario.
   const expectedVsHighHp = expected != null && hpGatedAdditionalDamageLedger.length ? expected * hpGatedAdditionalDamageMult : null;
   const expectedVsSurvived = expected != null && timeGatedAdditionalDamageLedger.length ? expected * timeGatedAdditionalDamageMult : null;
+  // Effective Damage — same associativity trick, applied to the enemy-Max-HP-reduction/Execute
+  // multipliers computed way above (before expected existed yet). The Effective Damage section
+  // previously only showed the multiplier itself with no resulting damage figure, unlike Conditional
+  // Modifiers' scenario rows which always paired the multiplier with an actual number.
+  const expectedEffectiveVsNormal = expected != null ? expected * effectiveDamageMultVsNormal : null;
+  const expectedEffectiveVsElite = expected != null ? expected * effectiveDamageMultVsElite : null;
+  const expectedEffectiveVsLarge = expected != null ? expected * effectiveDamageMultVsLarge : null;
 
   return {
     spell, ATK, ATKPreTitan, AMP, MDMG, xMultTotal, xMults, base, nonCrit, crit, expected,
@@ -1918,6 +1925,7 @@ function compute() {
     enemyMaxHpReductionElitePct, enemyMaxHpReductionLargePct,
     enemyMaxHpReductionVsNormal, enemyMaxHpReductionVsElite, enemyMaxHpReductionVsLarge,
     effectiveDamageMultVsNormal, effectiveDamageMultVsElite, effectiveDamageMultVsLarge,
+    expectedEffectiveVsNormal, expectedEffectiveVsElite, expectedEffectiveVsLarge,
     sniperActive, hpGatedAdditionalDamageLedger, hpGatedAdditionalDamageMult, expectedVsHighHp,
     timeGatedAdditionalDamageLedger, timeGatedAdditionalDamageMult, expectedVsSurvived,
     siegeHammerOwned, siegeHammerPct, nonCritWithSiegeHammer,
@@ -2553,13 +2561,13 @@ function renderResultsPane() {
   if (r.effectiveDamageActive) {
     const edSection = el('div', { class: 'section' });
     edSection.appendChild(el('div', { class: 'section-title' }, 'Effective Damage (vs. enemy Max HP)'));
-    const edRow = (label, reductionFraction, mult) => el('div', { class: 'ledger-row wrap' }, [
+    const edRow = (label, reductionFraction, mult, expectedEffective) => el('div', { class: 'ledger-row wrap' }, [
       el('span', { class: 'lk' }, label),
-      el('span', { class: 'lv' }, fmtSigned(-reductionFraction * 100, 1) + '% Max HP   x' + fmt(mult, 2) + ' Effective Damage'),
+      el('span', { class: 'lv' }, fmtSigned(-reductionFraction * 100, 1) + '% Max HP   x' + fmt(mult, 2) + '   ' + fmt(expectedEffective, 1) + ' effective damage'),
     ]);
-    edSection.appendChild(edRow('vs. Normal Enemies', r.enemyMaxHpReductionVsNormal, r.effectiveDamageMultVsNormal));
-    edSection.appendChild(edRow('vs. Elite Monsters', r.enemyMaxHpReductionVsElite, r.effectiveDamageMultVsElite));
-    edSection.appendChild(edRow('vs. Large Monsters', r.enemyMaxHpReductionVsLarge, r.effectiveDamageMultVsLarge));
+    edSection.appendChild(edRow('vs. Normal Enemies', r.enemyMaxHpReductionVsNormal, r.effectiveDamageMultVsNormal, r.expectedEffectiveVsNormal));
+    edSection.appendChild(edRow('vs. Elite Monsters', r.enemyMaxHpReductionVsElite, r.effectiveDamageMultVsElite, r.expectedEffectiveVsElite));
+    edSection.appendChild(edRow('vs. Large Monsters', r.enemyMaxHpReductionVsLarge, r.effectiveDamageMultVsLarge, r.expectedEffectiveVsLarge));
     if (r.magicSwordOwned) {
       edSection.appendChild(el('div', { class: 'note' }, 'Execute: Magic Sword instakills enemies below ' + fmt(r.executeThresholdPct, 0) + '% HP' + (r.egoSwordActive ? ' (raised from 20% by Ego Sword)' : '') + ' (already included above).'));
     }

@@ -940,6 +940,9 @@ r = compute();
 check('Magic Sword: Execute threshold = 20% (its own raw effect value)', r.executeThresholdPct, 20);
 check('Magic Sword alone (no Max HP reduction): vs-Normal multiplier = 1 / (1 - 0.20) = 1.25', r.effectiveDamageMultVsNormal, 1.25, 0.001);
 check('Effective Damage panel is active once Magic Sword is owned', r.effectiveDamageActive, true);
+// Effective Damage section previously showed only the multiplier with no resulting damage figure —
+// confirm the actual expected-damage number is exposed too, matching Conditional Modifiers' rows.
+check('Magic Sword: expectedEffectiveVsNormal = expected x 1.25', r.expectedEffectiveVsNormal, r.expected * 1.25, 0.01);
 
 reset();
 own('Magic Sword'); own('Basilisk'); own('Sample'); // general pool 13%, Execute 20%, no Venom
