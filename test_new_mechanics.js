@@ -993,6 +993,88 @@ r = compute();
 check('Brand: timeGatedAdditionalDamageMult = 1.15', r.timeGatedAdditionalDamageMult, 1.15, 0.0001);
 check('Brand: expectedVsSurvived = expected * 1.15', r.expectedVsSurvived, r.expected * 1.15, 0.01);
 
+// --- Jet Engine / War Flag: AMP-pool contributions (not Additional Damage), gated on "while
+// moving" / "standing still, max stack" — shown as "assume full uptime" scenario rows per the
+// user's own direction, same shape as the HP%/time-gated group above. AMP is additive-then-
+// multiplied (AMP = 1 + ampPct/100), so the scenario multiplier must be (new AMP)/(current AMP),
+// not a naive flat (1 + bonus/100) — the Overmind-combined cases below specifically catch a
+// regression to that naive (and wrong) shortcut. ---
+reset();
+own('Jet Engine');
+r = compute();
+check('Jet Engine: jetEnginePct = 15 (its own raw effect value)', r.jetEnginePct, 15);
+check('Jet Engine alone (ampPct=0): jetEngineMult = 1.15', r.jetEngineMult, 1.15, 0.0001);
+check('Jet Engine: expectedVsMoving = expected * 1.15', r.expectedVsMoving, r.expected * 1.15, 0.01);
+
+reset();
+state.spellState = {};
+setSpellLevel(GAMEDATA.spells[1], spellState(1), 7);
+setSpellLevel(GAMEDATA.spells[2], spellState(2), 3);
+setSpellLevel(GAMEDATA.spells[21], spellState(21), 1);
+setSpellLevel(GAMEDATA.spells[10], spellState(10), 5);
+state.selectedSpellId = 1;
+state.fusionIds = [26]; // Overmind
+own('Jet Engine');
+r = compute();
+check('Jet Engine + Overmind: ampPct = 24 (Overmind\'s own contribution, unaffected by the scenario)', r.ampPct, 24);
+check('Jet Engine + Overmind: jetEngineMult = 1.39/1.24, NOT a naive flat 1.15 (additive-then-multiplied AMP)', r.jetEngineMult, 1.39 / 1.24, 0.0001);
+
+reset();
+own('War Flag');
+r = compute();
+check('War Flag: warFlagMaxPct = 20 (Max Stack value, not the per-second 2%)', r.warFlagMaxPct, 20);
+check('War Flag alone (ampPct=0): warFlagMult = 1.20', r.warFlagMult, 1.20, 0.0001);
+check('War Flag: expectedVsStandingStill = expected * 1.20', r.expectedVsStandingStill, r.expected * 1.20, 0.01);
+
+// --- Merlin's Cape / Magic Fountain: same bounded "assume max" AMP shape as Jet Engine/War Flag,
+// just Mana-based (100% Mana / Magic Fountain's own stated Max Stack) instead of movement-based. ---
+reset();
+own('Merlin\'s Cape');
+r = compute();
+check('Merlin\'s Cape: merlinsCapeMaxPct = 25 (its own coefficient IS its max, at 100% Mana)', r.merlinsCapeMaxPct, 25);
+check('Merlin\'s Cape alone (ampPct=0): merlinsCapeMult = 1.25', r.merlinsCapeMult, 1.25, 0.0001);
+check('Merlin\'s Cape: expectedVsFullManaCape = expected * 1.25', r.expectedVsFullManaCape, r.expected * 1.25, 0.01);
+
+reset();
+state.spellState = {};
+setSpellLevel(GAMEDATA.spells[1], spellState(1), 7);
+setSpellLevel(GAMEDATA.spells[2], spellState(2), 3);
+setSpellLevel(GAMEDATA.spells[21], spellState(21), 1);
+setSpellLevel(GAMEDATA.spells[10], spellState(10), 5);
+state.selectedSpellId = 1;
+state.fusionIds = [26]; // Overmind
+own('Merlin\'s Cape');
+r = compute();
+// Naive (wrong) shortcut would give 1.25 regardless of ampPct; real math: (1+(24+25)/100)/(1+24/100) = 1.49/1.24
+check('Merlin\'s Cape + Overmind: merlinsCapeMult = 1.49/1.24, NOT a naive flat 1.25', r.merlinsCapeMult, 1.49 / 1.24, 0.0001);
+
+reset();
+own('Magic Fountain');
+r = compute();
+check('Magic Fountain: magicFountainMaxPct = 20 (Max Stack value, not the per-200-orb 1%)', r.magicFountainMaxPct, 20);
+check('Magic Fountain alone (ampPct=0): magicFountainMult = 1.20', r.magicFountainMult, 1.20, 0.0001);
+check('Magic Fountain: expectedVsMaxManaOrbs = expected * 1.20', r.expectedVsMaxManaOrbs, r.expected * 1.20, 0.01);
+
+// --- Mana Shield: no AMP contribution of its own — only damage-relevant through Aegis re-reading
+// a higher scenario Damage Taken Reduction total. Without Aegis owned, must be a true no-op (1x). ---
+reset();
+own('Mana Shield');
+r = compute();
+check('Mana Shield: manaShieldMaxPct = 50 (its own raw coefficient, at 100% Mana)', r.manaShieldMaxPct, 50);
+check('Mana Shield WITHOUT Aegis: manaShieldMult = 1 (true no-op, no damage-relevant reader owned)', r.manaShieldMult, 1, 0.0001);
+check('Mana Shield WITHOUT Aegis: expectedVsFullManaShield stays null (nothing to show)', r.expectedVsFullManaShield, null);
+
+reset();
+own('Aegis'); own('Dragonscale'); // real damageReductionPct = 37 (Aegis -10% x Dragonscale -30%)
+own('Mana Shield');
+r = compute();
+check('Mana Shield + Aegis + Dragonscale: real damageReductionPct stays 37 (Mana Shield never joins the REAL pool, scenario-only)', r.damageReductionPct, 37);
+// Scenario pool: 0.63 (real) x (1-0.50) = 0.315 -> 68.5% scenario reduction -> scenario Aegis = 3x6.85 = 20.55
+// Real Aegis (already in ampPct) = 3x3.7 = 11.1, so ampPct=11.1, AMP=1.111
+// manaShieldMult = (1 + (11.1 - 11.1 + 20.55)/100) / 1.111 = 1.2055/1.111
+check('Mana Shield + Aegis + Dragonscale: manaShieldMult = 1.2055/1.111 (Aegis re-read with the scenario pool)', r.manaShieldMult, 1.2055 / 1.111, 0.0001);
+check('Mana Shield + Aegis + Dragonscale: expectedVsFullManaShield = expected * manaShieldMult', r.expectedVsFullManaShield, r.expected * (1.2055 / 1.111), 0.01);
+
 // --- Siege Hammer: +20% Additional Damage on non-crit hits only, folded into the expected-damage
 // weighting (the non-crit probability is already a tracked stat), plus its own separate +20%
 // Critical Strike Multiplier line (already reaching the general critMult regex on its own). ---

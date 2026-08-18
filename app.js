@@ -306,6 +306,32 @@ const SNIPER_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Sniper') || null
 // Brand (Artifact): "Deal 15% Additional Damage to enemies that have survived for more than 5s" —
 // same conditional-Additional-Damage shape as the HP%-gated group above, just time-gated instead.
 const BRAND_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Brand') || null;
+// Jet Engine ("while moving, Amplify ATK by 15%") and War Flag ("Amplify ATK by 2% per second
+// standing still, Max Stack 20%") — same live-combat-state-gated shape as the HP%/time-gated group
+// above, but an AMP-pool contribution rather than an Additional Damage one, and the two conditions
+// are behaviorally mutually exclusive (can't be moving and standing still at once), so each gets
+// its own independent "assume max bonus" scenario row rather than being combined into one shared
+// ledger. Per the user's own direction: assume full uptime (always moving / always at max stack)
+// rather than trying to model actual movement.
+const JET_ENGINE_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Jet Engine') || null;
+const WAR_FLAG_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'War Flag') || null;
+// Merlin's Cape ("Amplify ATK by 25% of the current Mana percentage") and Magic Fountain ("Amplify
+// ATK by 1% per 200 Mana Orbs held", also with its own stated "Max Stack: 20%") — same bounded,
+// AMP-pool, "assume max" shape as Jet Engine/War Flag above (Mana% is inherently capped at 100%,
+// so Merlin's Cape's own max is a flat +25%; Magic Fountain's is capped by its own stated 20%).
+// Mana Circuit ("+1% per Mana Orb obtained") and Hunter ("+1% per 100 kills") were the other two
+// items in this same "current stat -> AMP" family, but have no stated cap at all — nothing to
+// assume a "max" of — so per the user's own direction those stay permanently excluded.
+const MERLINS_CAPE_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === "Merlin's Cape") || null;
+const MAGIC_FOUNTAIN_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Magic Fountain') || null;
+// Mana Shield ("Decrease Damage Taken by 50% of the current Mana percentage") — same bounded/
+// "assume max" shape again, but it's a defensive stat with no damage effect of its own; it only
+// becomes damage-relevant through something else that reads the Damage Taken Reduction total, i.e.
+// Aegis ("Amplify ATK by 3% per 10% Damage Reduction", see AEGIS_ARTIFACT above). So Mana Shield's
+// own scenario recomputes Aegis's contribution with the extra reduction folded in, rather than
+// contributing to AMP directly itself — with no such downstream reader owned, it has no measurable
+// effect on damage output at all (a real, correctly-modeled no-op, not a gap).
+const MANA_SHIELD_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Mana Shield') || null;
 // Siege Hammer (Artifact): "Deal 20% Additional Damage if an attack is NOT a Critical Strike" (plus
 // its own separate, always-on "+20% Critical Strike Multiplier" line, which already reaches the
 // general critMult regex on its own — no special-casing needed for that half). The non-crit
@@ -1732,11 +1758,27 @@ function compute() {
   }
   // Aegis (Artifact): ATK Amp +3% per 10% Damage Reduction — reads the pool without depleting it.
   const aegisOwned = AEGIS_ARTIFACT && ownsArtifactByName('Aegis');
+  const aegisPerUnit = (AEGIS_ARTIFACT && AEGIS_ARTIFACT.effects[0] && AEGIS_ARTIFACT.effects[0].value) || 3;
+  let aegisRealAmt = 0;
   if (aegisOwned && damageReductionPct) {
-    const perUnit = (AEGIS_ARTIFACT.effects[0] && AEGIS_ARTIFACT.effects[0].value) || 3;
-    const amt = Math.round(perUnit * (damageReductionPct / 10) * 100) / 100;
-    if (amt) { ampPct += amt; ledger.amp.push({ source: 'Aegis (Relic, Damage Reduction ' + Math.round(damageReductionPct * 100) / 100 + '%)', text: 'Amplify ATK by ' + amt + '%', amount: amt }); }
+    aegisRealAmt = Math.round(aegisPerUnit * (damageReductionPct / 10) * 100) / 100;
+    if (aegisRealAmt) { ampPct += aegisRealAmt; ledger.amp.push({ source: 'Aegis (Relic, Damage Reduction ' + Math.round(damageReductionPct * 100) / 100 + '%)', text: 'Amplify ATK by ' + aegisRealAmt + '%', amount: aegisRealAmt }); }
   }
+  // Mana Shield (Artifact): "Decrease Damage Taken by 50% of the current Mana percentage" — bounded
+  // (Mana% caps at 100%), so "assume max" = assume full Mana = its raw effect value taken as a flat
+  // Damage Taken Reduction contribution, combined into the SAME multiplicative reduction pool as
+  // damageTakenLedger's real sources. Only matters for damage output through Aegis re-reading that
+  // higher scenario reduction total — with no such reader owned, this has no measurable effect (a
+  // real no-op, not a gap), so manaShieldScenarioAegisAmt stays equal to aegisRealAmt in that case.
+  const manaShieldOwned = MANA_SHIELD_ARTIFACT && ownsArtifactByName('Mana Shield');
+  const manaShieldMaxPct = manaShieldOwned
+    ? ((MANA_SHIELD_ARTIFACT.effects.find(e => /Damage Taken/i.test(e.text || '')) || {}).value || 50)
+    : 0;
+  const manaShieldScenarioDamageReductionMult = manaShieldOwned ? damageReductionMult * (1 - manaShieldMaxPct / 100) : damageReductionMult;
+  const manaShieldScenarioDamageReductionPct = (1 - manaShieldScenarioDamageReductionMult) * 100;
+  const manaShieldScenarioAegisAmt = (aegisOwned && manaShieldScenarioDamageReductionPct)
+    ? Math.round(aegisPerUnit * (manaShieldScenarioDamageReductionPct / 10) * 100) / 100
+    : aegisRealAmt;
   // Akashic Record (Artifact): AMP% += 1 x player's current character level (the in-game tooltip's
   // "[2]" is a bracket-noise reference marker from a second, unrelated effect line rendered right
   // after it — see id 128's raw text — not a real divisor).
@@ -1851,6 +1893,40 @@ function compute() {
   const ATKPreTitan = PLAYER_BASE_ATK * (1 + atkPct / 100);
   const AMP = 1 + ampPct / 100;
   const MDMG = Math.max(0, 1 + mdmgPct / 100);
+
+  // Jet Engine / War Flag (Artifacts) — AMP is additive-then-multiplied (AMP = 1 + ampPct/100), so
+  // the scenario multiplier for "what if this bonus were also active" isn't naively (1 + bonus/100)
+  // — it has to be (new AMP)/(current AMP), computed against the actual ampPct already on the
+  // build, same associativity trick used for expectedVsHighHp/expectedVsSurvived below.
+  const jetEngineOwned = JET_ENGINE_ARTIFACT && ownsArtifactByName('Jet Engine');
+  const jetEnginePct = jetEngineOwned
+    ? ((JET_ENGINE_ARTIFACT.effects.find(e => /When moving/i.test(e.text || '')) || {}).value || 15)
+    : 0;
+  const jetEngineMult = jetEngineOwned ? (1 + (ampPct + jetEnginePct) / 100) / AMP : 1;
+
+  const warFlagOwned = WAR_FLAG_ARTIFACT && ownsArtifactByName('War Flag');
+  const warFlagMaxPct = warFlagOwned
+    ? ((WAR_FLAG_ARTIFACT.effects.find(e => /Max Stack/i.test(e.text || '')) || {}).value || 20)
+    : 0;
+  const warFlagMult = warFlagOwned ? (1 + (ampPct + warFlagMaxPct) / 100) / AMP : 1;
+
+  // Merlin's Cape / Magic Fountain — same "assume max" AMP-scenario shape as Jet Engine/War Flag,
+  // just Mana-based rather than movement/positioning-based. Merlin's Cape's own coefficient IS its
+  // max (100% Mana), Magic Fountain has its own separate stated Max Stack cap.
+  const merlinsCapeOwned = MERLINS_CAPE_ARTIFACT && ownsArtifactByName('Merlin\'s Cape');
+  const merlinsCapeMaxPct = merlinsCapeOwned ? ((MERLINS_CAPE_ARTIFACT.effects[0] && MERLINS_CAPE_ARTIFACT.effects[0].value) || 25) : 0;
+  const merlinsCapeMult = merlinsCapeOwned ? (1 + (ampPct + merlinsCapeMaxPct) / 100) / AMP : 1;
+
+  const magicFountainOwned = MAGIC_FOUNTAIN_ARTIFACT && ownsArtifactByName('Magic Fountain');
+  const magicFountainMaxPct = magicFountainOwned
+    ? ((MAGIC_FOUNTAIN_ARTIFACT.effects.find(e => /Max Stack/i.test(e.text || '')) || {}).value || 20)
+    : 0;
+  const magicFountainMult = magicFountainOwned ? (1 + (ampPct + magicFountainMaxPct) / 100) / AMP : 1;
+
+  // Mana Shield — no direct AMP contribution of its own; its scenario instead substitutes
+  // manaShieldScenarioAegisAmt for the real aegisRealAmt already folded into ampPct above, so the
+  // multiplier collapses to exactly 1 (a true no-op) whenever Aegis isn't owned.
+  const manaShieldMult = manaShieldOwned ? (1 + (ampPct - aegisRealAmt + manaShieldScenarioAegisAmt) / 100) / AMP : 1;
 
   // Arbiter (Synergy): flat x1.25 "Total Magic Damage Multiplier" — pushed into xMults like any
   // other multiplicative modifier so it shows up in the Special Modifiers list automatically.
@@ -1988,6 +2064,11 @@ function compute() {
   // associative), so no need to recompute the whole formula for each scenario.
   const expectedVsHighHp = expected != null && hpGatedAdditionalDamageLedger.length ? expected * hpGatedAdditionalDamageMult : null;
   const expectedVsSurvived = expected != null && timeGatedAdditionalDamageLedger.length ? expected * timeGatedAdditionalDamageMult : null;
+  const expectedVsMoving = expected != null && jetEngineOwned ? expected * jetEngineMult : null;
+  const expectedVsStandingStill = expected != null && warFlagOwned ? expected * warFlagMult : null;
+  const expectedVsFullManaCape = expected != null && merlinsCapeOwned ? expected * merlinsCapeMult : null;
+  const expectedVsMaxManaOrbs = expected != null && magicFountainOwned ? expected * magicFountainMult : null;
+  const expectedVsFullManaShield = expected != null && manaShieldOwned && aegisOwned ? expected * manaShieldMult : null;
   // Effective Damage — same associativity trick, applied to the enemy-Max-HP-reduction/Execute
   // multipliers computed way above (before expected existed yet). The Effective Damage section
   // previously only showed the multiplier itself with no resulting damage figure, unlike Conditional
@@ -2032,6 +2113,11 @@ function compute() {
     expectedEffectiveVsBossWave, expectedEffectiveVsNormalWave,
     sniperActive, hpGatedAdditionalDamageLedger, hpGatedAdditionalDamageMult, expectedVsHighHp,
     timeGatedAdditionalDamageLedger, timeGatedAdditionalDamageMult, expectedVsSurvived,
+    jetEngineOwned, jetEnginePct, jetEngineMult, expectedVsMoving,
+    warFlagOwned, warFlagMaxPct, warFlagMult, expectedVsStandingStill,
+    merlinsCapeOwned, merlinsCapeMaxPct, merlinsCapeMult, expectedVsFullManaCape,
+    magicFountainOwned, magicFountainMaxPct, magicFountainMult, expectedVsMaxManaOrbs,
+    manaShieldOwned, manaShieldMaxPct, manaShieldMult, expectedVsFullManaShield,
     siegeHammerOwned, siegeHammerPct, nonCritWithSiegeHammer,
     jokerOwned, jokerProcChance, critMultiWithJoker, widowmakerOwned,
   };
@@ -2714,7 +2800,7 @@ function renderResultsPane() {
   // rather than folded into the main expected-damage number above; Siege Hammer/Joker's conditions
   // ARE already probability-weighted into that main figure (their own known-stat odds), so they get
   // an explanatory note here instead of their own scenario row.
-  const hasConditionalModifiers = r.hpGatedAdditionalDamageLedger.length || r.timeGatedAdditionalDamageLedger.length || r.siegeHammerOwned || r.jokerOwned;
+  const hasConditionalModifiers = r.hpGatedAdditionalDamageLedger.length || r.timeGatedAdditionalDamageLedger.length || r.jetEngineOwned || r.warFlagOwned || r.merlinsCapeOwned || r.magicFountainOwned || r.manaShieldOwned || r.siegeHammerOwned || r.jokerOwned;
   if (hasConditionalModifiers) {
     const cmSection = collapsibleSection('cm', 'Conditional Modifiers', (cmSection) => {
       const cmRow = (label, mult, expectedValue) => el('div', { class: 'ledger-row wrap' }, [
@@ -2738,6 +2824,43 @@ function renderResultsPane() {
             el('span', { class: 'lv' }, '+' + fmt(a.pct, 1) + '%'),
           ]));
         }
+      }
+      if (r.jetEngineOwned) {
+        cmSection.appendChild(cmRow('vs. while moving (assumes full uptime)', r.jetEngineMult, r.expectedVsMoving));
+        cmSection.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk', style: 'padding-left:16px;' }, 'Jet Engine (Relic)'),
+          el('span', { class: 'lv' }, '+' + fmt(r.jetEnginePct, 1) + '% Amplify ATK'),
+        ]));
+      }
+      if (r.warFlagOwned) {
+        cmSection.appendChild(cmRow('vs. standing still (assumes max stack)', r.warFlagMult, r.expectedVsStandingStill));
+        cmSection.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk', style: 'padding-left:16px;' }, 'War Flag (Relic, Max Stack)'),
+          el('span', { class: 'lv' }, '+' + fmt(r.warFlagMaxPct, 1) + '% Amplify ATK'),
+        ]));
+      }
+      if (r.merlinsCapeOwned) {
+        cmSection.appendChild(cmRow('vs. full Mana (assumes max stacks)', r.merlinsCapeMult, r.expectedVsFullManaCape));
+        cmSection.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk', style: 'padding-left:16px;' }, 'Merlin\'s Cape (Relic)'),
+          el('span', { class: 'lv' }, '+' + fmt(r.merlinsCapeMaxPct, 1) + '% Amplify ATK'),
+        ]));
+      }
+      if (r.magicFountainOwned) {
+        cmSection.appendChild(cmRow('vs. max Mana Orbs held (assumes max stacks)', r.magicFountainMult, r.expectedVsMaxManaOrbs));
+        cmSection.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk', style: 'padding-left:16px;' }, 'Magic Fountain (Relic, Max Stack)'),
+          el('span', { class: 'lv' }, '+' + fmt(r.magicFountainMaxPct, 1) + '% Amplify ATK'),
+        ]));
+      }
+      if (r.manaShieldOwned && r.aegisOwned) {
+        cmSection.appendChild(cmRow('vs. full Mana (assumes max stacks)', r.manaShieldMult, r.expectedVsFullManaShield));
+        cmSection.appendChild(el('div', { class: 'ledger-row' }, [
+          el('span', { class: 'lk', style: 'padding-left:16px;' }, 'Mana Shield (Relic, via Aegis)'),
+          el('span', { class: 'lv' }, '+' + fmt(r.manaShieldMaxPct, 1) + '% Damage Taken Reduction'),
+        ]));
+      } else if (r.manaShieldOwned) {
+        cmSection.appendChild(el('div', { class: 'note' }, 'Mana Shield: no damage-relevant effect without Aegis (or another item reading the Damage Taken Reduction total) also owned — it\'s a purely defensive stat otherwise.'));
       }
       if (r.siegeHammerOwned) {
         cmSection.appendChild(el('div', { class: 'note' }, 'Siege Hammer: +' + fmt(r.siegeHammerPct, 0) + '% Additional Damage on non-crit hits only — already weighted into the expected damage above by your crit chance, not a separate scenario.'));
