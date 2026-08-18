@@ -31,13 +31,11 @@
     --stat-amp: #d954c9;
     --stat-amd: #2dc7db;
     --stat-crit: #f5a623;
-    --stat-combo: #8b7cf6;
     /* A genuinely separate multiplicative factor (literal "NX" effects, and "Damage Multiplier"-
        phrased ones like Deus Ex Machina/Telekinetic Sword/Arbiter) combines differently from the
        additive Magic Damage pool above (stat-amd) — each is its own multiply, not summed into one
-       shared total — so it gets its own color rather than sharing AMD's. Picked to sit in the one
-       open gap in the existing hue wheel (between AMD's cyan ~189° and Combo's indigo ~252°),
-       confirmed visually distinct from both via a side-by-side comparison before picking. */
+       shared total — so it gets its own color rather than sharing AMD's. Confirmed visually
+       distinct via a side-by-side comparison against the other stat colors before picking. */
     --stat-xmult: #4a90e2;
     --stat-atk-soft: rgba(76, 217, 100, 0.16);
     --stat-amp-soft: rgba(217, 84, 201, 0.16);
@@ -70,7 +68,6 @@
     --stat-amp: #a83a9c;
     --stat-amd: #1590a1;
     --stat-crit: #b8760f;
-    --stat-combo: #5f4fd1;
     --stat-xmult: #2a69b2;
     --stat-atk-soft: rgba(46, 158, 71, 0.12);
     --stat-amp-soft: rgba(168, 58, 156, 0.12);
@@ -101,7 +98,6 @@
       --stat-amp: #a83a9c;
       --stat-amd: #1590a1;
       --stat-crit: #b8760f;
-      --stat-combo: #5f4fd1;
       --stat-xmult: #2a69b2;
       --stat-atk-soft: rgba(46, 158, 71, 0.12);
       --stat-amp-soft: rgba(168, 58, 156, 0.12);
@@ -135,7 +131,6 @@
   .stat-amp { color: var(--stat-amp); }
   .stat-amd { color: var(--stat-amd); }
   .stat-crit { color: var(--stat-crit); }
-  .stat-combo { color: var(--stat-combo); }
   .stat-xmult { color: var(--stat-xmult); }
 
   /* ---------- Header ---------- */

@@ -809,13 +809,14 @@ function classLevelScalingEffect(cls, playerLevel) {
 // in the real damage math — no separate, potentially-drifting classification logic.
 function effectStatColorClass(effect) {
   if (!effect || !effect.text) return null;
-  // Combination Magic (Fusion) Damage is checked directly against the raw text, ahead of
-  // classifyEffect() — a distinct bucket from AMD (confirmed: it only ever boosts Fusion output,
-  // not a single spell or all magic broadly). This is display-only for now: classifyEffect()
-  // itself isn't touched, so none of these are actually being counted in the damage total yet
-  // (tracked separately — most also involve their own dynamic mechanics, e.g. Dominus scales per
-  // active Fusion, not a flat amount).
-  if (/Combination Magic Damage/i.test(effect.text)) return 'stat-combo';
+  // Combination Magic Damage (Advanced Magic, Dragontongue, Archmage, Dominus — see their dedicated
+  // handling in compute()) IS counted, conditionally: it's folded straight into the same additive
+  // mdmgPct pool every other Magic Damage source uses, once a Fusion's own multiplier is active to
+  // apply it to. Active Sources deliberately shows these with the standard AMD tag/color instead of
+  // a separate one for exactly that reason ("the underlying math was already correctly bucketed" —
+  // see its own comment in compute()) — this used to disagree by still special-casing a separate
+  // purple color here, which read as two different UI locations disagreeing about the same fact.
+  if (/Combination Magic Damage/i.test(effect.text)) return 'stat-amd';
   // Called without a specific spell name, so any "X spell's Damage" match (whether or not it
   // happens to be "the current spell") falls into other_spell_dmg(_x) rather than mdmg/xmult —
   // still a damage boost, so it still gets the AMD color.
@@ -856,7 +857,10 @@ const TEXT_STAT_KEYWORDS = [
   // draws between mdmg and xmult — so this now gets its own color (stat-xmult) instead of sharing
   // AMD's. "Damage Multiplier" alone is a strict text superset of the old narrower phrase.
   [/Damage Multiplier/gi, 'stat-xmult'],
-  [/Combination Magic Damage/gi, 'stat-combo'],
+  // Matches effectStatColorClass's own change — Combination Magic Damage is a conditional
+  // contributor to the same additive pool as regular Magic Damage, not a separate bucket, so it
+  // gets stat-amd rather than a dedicated purple that no longer means anything real.
+  [/Combination Magic Damage/gi, 'stat-amd'],
   // Bare "(All) Magic Damage" (Transcendence, Matrix, several class per-level bonuses) had no
   // pattern at all — only the Combination/Multiplier variants above did. Negative lookahead so it
   // yields to "Damage Multiplier" above rather than fighting it for the shared word "Damage" (e.g.
@@ -3001,23 +3005,29 @@ function renderResultsPane() {
   }
   if (hasOtherMults) {
     const otherMultCount = (r.demActive ? 1 : 0) + (r.classScaling && r.classMult !== 1 ? 1 : 0) + (r.spaceWarpEvoActive ? 1 : 0) + (r.additionalDamageLedger.length ? 1 : 0);
+    // DEM/Class multiplier/Space Warp are all genuinely separate multiplicative factors (same
+    // family "Damage Multiplier"-phrased tooltips already get colored stat-xmult) — tagged here too,
+    // matching every other Active Sources subsection's own convention of coloring both its header
+    // chip and each row's value. Additional Damage is a different bucket entirely (its own position
+    // in the formula, not a Magic-Damage variant at all) with no dedicated color anywhere else in
+    // the app, so its rows deliberately stay uncolored rather than borrowing xmult's.
     collapsibleSubsection(sourceSection, 'as-other', 'Other Multipliers', otherMultCount, (sub) => {
       if (r.demActive) {
         sub.appendChild(el('div', { class: 'ledger-row' }, [
           el('span', { class: 'lk' }, 'Deus Ex Machina (' + r.totalLevels + ' levels × 1% = ' + fmt(r.totalLevels * 1, 0) + '%, separate multiplier)'),
-          el('span', { class: 'lv' }, '×' + fmt(r.demMult, 4)),
+          el('span', { class: 'lv stat-xmult' }, '×' + fmt(r.demMult, 4)),
         ]));
       }
       if (r.classScaling && r.classMult !== 1) {
         sub.appendChild(el('div', { class: 'ledger-row' }, [
           el('span', { class: 'lk' }, 'Class multiplier (' + r.classScaling.text + ', separate from Magic Damage)'),
-          el('span', { class: 'lv' }, '×' + fmt(r.classMult, 3)),
+          el('span', { class: 'lv stat-xmult' }, '×' + fmt(r.classMult, 3)),
         ]));
       }
       if (r.spaceWarpEvoActive) {
         sub.appendChild(el('div', { class: 'ledger-row' }, [
           el('span', { class: 'lk' }, 'Space Warp (Cloaking Duration ' + fmtSigned(r.cloakingDurationBonusPct) + '%, 1:1 with explosion damage)'),
-          el('span', { class: 'lv' }, '×' + fmt(r.spaceWarpDurationMult, 3)),
+          el('span', { class: 'lv stat-xmult' }, '×' + fmt(r.spaceWarpDurationMult, 3)),
         ]));
       }
       if (r.additionalDamageLedger.length) {
@@ -3032,7 +3042,7 @@ function renderResultsPane() {
           ]));
         }
       }
-    });
+    }, 'stat-xmult');
   }
   pane.appendChild(sourceSection);
 
