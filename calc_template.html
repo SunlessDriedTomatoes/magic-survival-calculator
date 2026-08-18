@@ -390,6 +390,10 @@
   .ledger-row.total { border-bottom: none; border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; font-weight: 600; }
   .ledger-row.total .lk { color: var(--text); }
   .ledger-row.total .lv { color: var(--accent-strong); }
+  /* .ledger-row.total .lk above (3 classes) otherwise silently outranks a single .stat-xmult class
+     (1 class) on the same element — Special Modifiers' "Combined" row is both total AND colored, so
+     without this override the label would render in the default total-row text color instead. */
+  .ledger-row.total .lk.stat-xmult { color: var(--stat-xmult); }
   /* Effective Damage's rows pack much longer value text ("-56.4% Max HP   x2.29 Effective
      Damage") than every other .ledger-row user's short numbers, so they wrap onto their own line
      under the label instead of overflowing the panel's right edge. */

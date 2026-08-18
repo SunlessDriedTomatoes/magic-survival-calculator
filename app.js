@@ -2766,7 +2766,10 @@ function renderResultsPane() {
 
   // Special Modifiers — every individual multiplicative bucket beyond ATK/AMP/MDMG, named and
   // shown separately (evolution/fusion X-multipliers, e.g. size- or count-scaled damage, plus
-  // Ultimates). Nothing here gets silently merged into one aggregate number.
+  // Ultimates). Nothing here gets silently merged into one aggregate number. Every entry here is by
+  // definition the stat-xmult bucket (a separate multiplicative factor, same family as "Other
+  // Multipliers"/"Damage Multiplier"-phrased tooltips) — colored the same way Formula Breakdown's
+  // own ATK/AMP rows already are (row()'s keyClass arg), this section just never had it before.
   const modSection = el('div', { class: 'section' });
   modSection.appendChild(el('div', { class: 'section-title' }, 'Special Modifiers'));
   const hasModifiers = r.xMults.length > 0 || r.activeUltimates.length > 0;
@@ -2775,13 +2778,13 @@ function renderResultsPane() {
   }
   for (const x of r.xMults) {
     const mult = x.dir === 'Decrease' ? (1 / x.amount) : x.amount;
-    modSection.appendChild(row(x.source, 'x' + fmt(mult, 2)));
+    modSection.appendChild(row(x.source, 'x' + fmt(mult, 2), false, 'stat-xmult'));
   }
   for (const { ult, mult } of r.activeUltimates) {
-    modSection.appendChild(row('Ultimate (' + ult.fusion.name + ' → ' + ult.ultimateName + (ult.verified === true ? ', verified' : ', approx.') + ')', 'x' + fmt(mult, 2)));
+    modSection.appendChild(row('Ultimate (' + ult.fusion.name + ' → ' + ult.ultimateName + (ult.verified === true ? ', verified' : ', approx.') + ')', 'x' + fmt(mult, 2), false, 'stat-xmult'));
   }
   if (hasModifiers) {
-    modSection.appendChild(row('Combined', 'x' + fmt(r.xMultTotal, 2), true));
+    modSection.appendChild(row('Combined', 'x' + fmt(r.xMultTotal, 2), true, 'stat-xmult'));
   }
   // These all caveat/explain the Special Modifiers figures directly above, so they belong inside
   // this section rather than floating as orphaned notes between it and whatever section comes next.
@@ -2877,32 +2880,36 @@ function renderResultsPane() {
           ]));
         }
       }
+      // Jet Engine/War Flag/Merlin's Cape/Magic Fountain's own source rows literally state "+N%
+      // Amplify ATK" — the AMP bucket, same color Active Sources' own AMP subsection uses. The
+      // scenario summary row above each (cmRow) stays uncolored, matching the HP%/time-gated group's
+      // own precedent — it represents a derived damage multiplier, not a raw stat contribution.
       if (r.jetEngineOwned) {
         cmSection.appendChild(cmRow('vs. while moving (assumes full uptime)', r.jetEngineMult, r.expectedVsMoving));
         cmSection.appendChild(el('div', { class: 'ledger-row' }, [
           el('span', { class: 'lk', style: 'padding-left:16px;' }, 'Jet Engine (Relic)'),
-          el('span', { class: 'lv' }, '+' + fmt(r.jetEnginePct, 1) + '% Amplify ATK'),
+          el('span', { class: 'lv stat-amp' }, '+' + fmt(r.jetEnginePct, 1) + '% Amplify ATK'),
         ]));
       }
       if (r.warFlagOwned) {
         cmSection.appendChild(cmRow('vs. standing still (assumes max stack)', r.warFlagMult, r.expectedVsStandingStill));
         cmSection.appendChild(el('div', { class: 'ledger-row' }, [
           el('span', { class: 'lk', style: 'padding-left:16px;' }, 'War Flag (Relic, Max Stack)'),
-          el('span', { class: 'lv' }, '+' + fmt(r.warFlagMaxPct, 1) + '% Amplify ATK'),
+          el('span', { class: 'lv stat-amp' }, '+' + fmt(r.warFlagMaxPct, 1) + '% Amplify ATK'),
         ]));
       }
       if (r.merlinsCapeOwned) {
         cmSection.appendChild(cmRow('vs. full Mana (assumes max stacks)', r.merlinsCapeMult, r.expectedVsFullManaCape));
         cmSection.appendChild(el('div', { class: 'ledger-row' }, [
           el('span', { class: 'lk', style: 'padding-left:16px;' }, 'Merlin\'s Cape (Relic)'),
-          el('span', { class: 'lv' }, '+' + fmt(r.merlinsCapeMaxPct, 1) + '% Amplify ATK'),
+          el('span', { class: 'lv stat-amp' }, '+' + fmt(r.merlinsCapeMaxPct, 1) + '% Amplify ATK'),
         ]));
       }
       if (r.magicFountainOwned) {
         cmSection.appendChild(cmRow('vs. max Mana Orbs held (assumes max stacks)', r.magicFountainMult, r.expectedVsMaxManaOrbs));
         cmSection.appendChild(el('div', { class: 'ledger-row' }, [
           el('span', { class: 'lk', style: 'padding-left:16px;' }, 'Magic Fountain (Relic, Max Stack)'),
-          el('span', { class: 'lv' }, '+' + fmt(r.magicFountainMaxPct, 1) + '% Amplify ATK'),
+          el('span', { class: 'lv stat-amp' }, '+' + fmt(r.magicFountainMaxPct, 1) + '% Amplify ATK'),
         ]));
       }
       if (r.manaShieldOwned && r.aegisOwned) {
