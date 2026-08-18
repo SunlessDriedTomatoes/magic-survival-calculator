@@ -32,10 +32,18 @@
     --stat-amd: #2dc7db;
     --stat-crit: #f5a623;
     --stat-combo: #8b7cf6;
+    /* A genuinely separate multiplicative factor (literal "NX" effects, and "Damage Multiplier"-
+       phrased ones like Deus Ex Machina/Telekinetic Sword/Arbiter) combines differently from the
+       additive Magic Damage pool above (stat-amd) — each is its own multiply, not summed into one
+       shared total — so it gets its own color rather than sharing AMD's. Picked to sit in the one
+       open gap in the existing hue wheel (between AMD's cyan ~189° and Combo's indigo ~252°),
+       confirmed visually distinct from both via a side-by-side comparison before picking. */
+    --stat-xmult: #4a90e2;
     --stat-atk-soft: rgba(76, 217, 100, 0.16);
     --stat-amp-soft: rgba(217, 84, 201, 0.16);
     --stat-amd-soft: rgba(45, 199, 219, 0.16);
     --stat-crit-soft: rgba(245, 166, 35, 0.16);
+    --stat-xmult-soft: rgba(74, 144, 226, 0.16);
     --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: "SF Mono", "Cascadia Code", "Consolas", monospace;
@@ -63,10 +71,12 @@
     --stat-amd: #1590a1;
     --stat-crit: #b8760f;
     --stat-combo: #5f4fd1;
+    --stat-xmult: #2a69b2;
     --stat-atk-soft: rgba(46, 158, 71, 0.12);
     --stat-amp-soft: rgba(168, 58, 156, 0.12);
     --stat-amd-soft: rgba(21, 144, 161, 0.12);
     --stat-crit-soft: rgba(184, 118, 15, 0.12);
+    --stat-xmult-soft: rgba(42, 105, 178, 0.12);
   }
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
@@ -92,10 +102,12 @@
       --stat-amd: #1590a1;
       --stat-crit: #b8760f;
       --stat-combo: #5f4fd1;
+      --stat-xmult: #2a69b2;
       --stat-atk-soft: rgba(46, 158, 71, 0.12);
       --stat-amp-soft: rgba(168, 58, 156, 0.12);
       --stat-amd-soft: rgba(21, 144, 161, 0.12);
       --stat-crit-soft: rgba(184, 118, 15, 0.12);
+      --stat-xmult-soft: rgba(42, 105, 178, 0.12);
     }
   }
 
@@ -124,6 +136,7 @@
   .stat-amd { color: var(--stat-amd); }
   .stat-crit { color: var(--stat-crit); }
   .stat-combo { color: var(--stat-combo); }
+  .stat-xmult { color: var(--stat-xmult); }
 
   /* ---------- Header ---------- */
   .topbar {
@@ -223,6 +236,7 @@
   .subsection-title.stat-amp { color: var(--stat-amp); background: var(--stat-amp-soft); border-left-color: var(--stat-amp); }
   .subsection-title.stat-amd { color: var(--stat-amd); background: var(--stat-amd-soft); border-left-color: var(--stat-amd); }
   .subsection-title.stat-crit { color: var(--stat-crit); background: var(--stat-crit-soft); border-left-color: var(--stat-crit); }
+  .subsection-title.stat-xmult { color: var(--stat-xmult); background: var(--stat-xmult-soft); border-left-color: var(--stat-xmult); }
 
   label.field { display: block; margin-bottom: 14px; }
   label.field:last-child { margin-bottom: 0; }

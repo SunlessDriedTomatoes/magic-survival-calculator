@@ -822,7 +822,12 @@ function effectStatColorClass(effect) {
   const c = classifyEffect(effect, null);
   if (c.kind === 'atk') return 'stat-atk';
   if (c.kind === 'amp') return 'stat-amp';
-  if (['mdmg', 'xmult', 'other_spell_dmg', 'other_spell_dmg_x'].includes(c.kind)) return 'stat-amd';
+  // mdmg/other_spell_dmg are both "+N% Damage" — additive with every other source in the same pool,
+  // one multiply at the end (stat-amd). xmult/other_spell_dmg_x are literal "NX" effects — each its
+  // own separate multiplicative factor, not summed with the additive pool at all (stat-xmult).
+  // Conflating these two under one color was itself the thing the user caught with Deus Ex Machina.
+  if (['mdmg', 'other_spell_dmg'].includes(c.kind)) return 'stat-amd';
+  if (['xmult', 'other_spell_dmg_x'].includes(c.kind)) return 'stat-xmult';
   if (c.kind === 'critChance' || c.kind === 'critMult') return 'stat-crit';
   return null;
 }
@@ -834,12 +839,23 @@ function effectStatColorClass(effect) {
 // these are being counted in the damage total. Order matters: longer/more specific phrases are
 // checked first so they aren't partially swallowed by a shorter, broader pattern later in the list.
 const TEXT_STAT_KEYWORDS = [
-  // Was narrowed to the literal phrase "Total Magic Damage Multiplier" (Arbiter's own wording) —
-  // missed every other real phrasing of the same AMD-bucket concept found dataset-wide ("All Magic
-  // Damage Multiplier" on Deus Ex Machina, or bare "Damage Multiplier" on Telekinetic Sword/Plasma
-  // Ray/Genocide/etc.'s own dynamic-scaling flavor text). "Damage Multiplier" alone is a strict
-  // superset — still matches the original phrase, plus every other one.
-  [/Damage Multiplier/gi, 'stat-amd'],
+  // "Amplify ATK" is a specific compound idiom the game uses to mean the AMP bucket alone (see
+  // classifyEffect's own `/^Amplify ATK by [\d.]+%/` -> kind 'amp' rule) — checked first, ahead of
+  // the standalone Amplif.../ATK patterns below, so the whole phrase resolves as ONE amp-colored
+  // match instead of two independently-colored words. Without this, text-only synergies like
+  // Overmind ("Amplify ATK by 1.5%", no structured effect behind it to color the line as a whole)
+  // rendered "Amplify" and "ATK" in two different colors, implying two separate contributions
+  // (AMP and ATK) when it's mechanically one (AMP only) — confirmed misleading by the user.
+  [/Amplify ATK/gi, 'stat-amp'],
+  // Was narrowed to the literal phrase "Total Magic Damage Multiplier" (Arbiter's own wording),
+  // and colored the same as the additive Magic Damage pool (stat-amd) — missed every other real
+  // phrasing of this concept ("All Magic Damage Multiplier" on Deus Ex Machina, bare "Damage
+  // Multiplier" on Telekinetic Sword/Plasma Ray/Genocide/etc.), and conflated a mechanically
+  // different bucket: every one of these (Arbiter included) is a genuinely separate multiplicative
+  // factor, not additive with the Magic Damage pool at all — same distinction effectStatColorClass
+  // draws between mdmg and xmult — so this now gets its own color (stat-xmult) instead of sharing
+  // AMD's. "Damage Multiplier" alone is a strict text superset of the old narrower phrase.
+  [/Damage Multiplier/gi, 'stat-xmult'],
   [/Combination Magic Damage/gi, 'stat-combo'],
   [/Critical (?:Strike )?(?:Rate|Multiplier)/gi, 'stat-crit'],
   [/Amplif(?:y|ied|ication)/gi, 'stat-amp'],
