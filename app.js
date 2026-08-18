@@ -2882,7 +2882,10 @@ function renderResultsPane() {
       edSection.appendChild(el('div', { class: 'note' }, 'Venom: multiplies the general pool\'s already-resolved reduction rate by x1.15, per its own effect — the pool itself always combines its sources multiplicatively (not additively), Venom or not.'));
     }
     if (r.enemyMaxHpModBossWavePct !== 0 || r.enemyMaxHpModNormalWavePct !== 0) {
-      edSection.appendChild(el('div', { class: 'note' }, 'Imp: -' + fmt(r.enemyMaxHpModBossWavePct, 0) + '% Max HP vs. Boss Wave Monsters, +' + fmt(-r.enemyMaxHpModNormalWavePct, 0) + '% vs. Normal Wave Monsters — its own separate pool, layered on top of the general pool above rather than folded into it.'));
+      // Reads the resolved (multiplicative) fraction, not the raw additive Pct sum — currently
+      // identical since Imp is the pool's only source, but stays correct if a second Boss/Normal-
+      // Wave source is ever found (same reason the pool itself was changed to combine this way).
+      edSection.appendChild(el('div', { class: 'note' }, 'Imp: -' + fmt(r.enemyMaxHpModBossWaveFraction * 100, 0) + '% Max HP vs. Boss Wave Monsters, +' + fmt(-r.enemyMaxHpModNormalWaveFraction * 100, 0) + '% vs. Normal Wave Monsters — its own separate pool, layered on top of the general pool above rather than folded into it.'));
     }
     pane.appendChild(edSection);
   }
