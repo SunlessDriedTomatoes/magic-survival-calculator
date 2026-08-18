@@ -840,14 +840,19 @@ function effectStatColorClass(effect) {
 // these are being counted in the damage total. Order matters: longer/more specific phrases are
 // checked first so they aren't partially swallowed by a shorter, broader pattern later in the list.
 const TEXT_STAT_KEYWORDS = [
-  // "Amplify ATK" is a specific compound idiom the game uses to mean the AMP bucket alone (see
+  // "ATK"+"Amplif*" co-occurring is a compound idiom meaning the AMP bucket alone (see
   // classifyEffect's own `/^Amplify ATK by [\d.]+%/` -> kind 'amp' rule) — checked first, ahead of
   // the standalone Amplif.../ATK patterns below, so the whole phrase resolves as ONE amp-colored
-  // match instead of two independently-colored words. Without this, text-only synergies like
-  // Overmind ("Amplify ATK by 1.5%", no structured effect behind it to color the line as a whole)
-  // rendered "Amplify" and "ATK" in two different colors, implying two separate contributions
-  // (AMP and ATK) when it's mechanically one (AMP only) — confirmed misleading by the user.
+  // match instead of two independently-colored words implying two separate contributions (AMP and
+  // ATK) when it's mechanically one (AMP only) — confirmed misleading by the user, twice: first for
+  // "Amplify ATK" (Overmind), then again for the reversed "ATK is Amplified" (Jet Engine, Akashic
+  // Record) and bare "ATK Amplify" (Dragon's Heart) — real phrasings a single fixed word order
+  // missed entirely. Two patterns cover all three confirmed real orderings dataset-wide (checked
+  // directly): "Amplify ATK..." and "ATK (is) Amplif...". Doesn't fire on AGI's own "ATK is
+  // Increased & Amplified..." (a real compound of TWO separate effects, not one idiom) since
+  // "Amplif" isn't immediately adjacent to "ATK is" there — correctly left to color as two words.
   [/Amplify ATK/gi, 'stat-amp'],
+  [/\bATK\s+(?:is\s+)?Amplif\w*/gi, 'stat-amp'],
   // Was narrowed to the literal phrase "Total Magic Damage Multiplier" (Arbiter's own wording),
   // and colored the same as the additive Magic Damage pool (stat-amd) — missed every other real
   // phrasing of this concept ("All Magic Damage Multiplier" on Deus Ex Machina, bare "Damage
