@@ -591,6 +591,16 @@ spellState(11).evolutions.clear();
 spellState(11).evolutions.add(452); // Mirage instead of Space Warp
 r = compute();
 check('spaceWarpEvoActive is false when Mirage is picked instead of Space Warp', r.spaceWarpEvoActive, false);
+// Mirage's own "+80% Cloaking Duration" had no text template (null-text scan finding) and never
+// fed durationSpellPct before this fix — confirmed it now does, on top of Cloaking's own Lv2-4
+// upgrades (90) already counted above.
+// Mirage's own "+80% Cloaking Duration" already has its own separate, properly-texted effect
+// (distinct from the null-text "evolution chosen" marker it shares the same id/value pattern with
+// Space Warp's own marker) — already correctly classified via the normal durationSpell regex, no
+// fix needed. Regression-testing this explicitly since an earlier attempt to "fix" it as if it were
+// missing caused a real double-count (170 expected, 250 got) before this was caught and reverted.
+check('Mirage: durationSpellPct = 170 (90 own Cloaking upgrades + 80 Mirage, already correctly classified)', r.durationSpellPct, 170);
+check('Mirage: spaceWarpDurationMult stays 1 (mutual exclusion — Mirage never affects Space Warp\'s own mult)', r.spaceWarpDurationMult, 1);
 
 // --- Hallucination (Teleport's Ultimate): included at user's request, x1.25, NOT independently
 // confirmed (see ultimates.json note) — also verifies the isUltimateUnlocked fix, since Cloaking has
@@ -1108,6 +1118,23 @@ const fireballSpellCountTest = Object.values(GAMEDATA.spells).find(s => s.name =
 // Demon Equation: "Increase the number of Fireballs by 4X" -> base + round(base x 4)
 const fireballBaseCountTest = GAMEDATA.spells[fireballSpellCountTest.id].base.number;
 check('Demon Equation: Fireball count includes base + round(base x 4) from its own "4X" grant', computeSpellTotalCount(GAMEDATA.spells[fireballSpellCountTest.id]) >= fireballBaseCountTest + Math.round(fireballBaseCountTest * 4), true);
+
+// --- Soul Harvest (Cloaking's third Tier-1 evolution): "Recover 0.1% HP per enemy killed while in
+// Cloaking, and increase Mana Acquisition by 33%" — one combined effect with no text template
+// (null-text scan finding), same shape as Adrenaline's earlier bug. The HP-recovery half is a
+// non-damage defensive stat, correctly out of scope; the Mana Acquisition half feeds Abyss and was
+// being lost entirely. Unlike Mirage, this must apply regardless of which spell is currently being
+// viewed (Mana Acquisition is a global stat, not per-spell), so it's checked while viewing Magic
+// Bolt specifically to prove it isn't gated on viewing Cloaking. ---
+reset();
+own('Abyss'); // reads manaAcquisitionPct, converts half to ATK
+const cloakingSpellForSoulHarvest = GAMEDATA.spells[11];
+setSpellLevel(cloakingSpellForSoulHarvest, spellState(11), 5);
+spellState(11).evolutions.add(454); // Soul Harvest
+state.selectedSpellId = 1; // Magic Bolt — NOT Cloaking, proving this isn't per-spell-gated
+r = compute();
+check('Soul Harvest: manaAcquisitionPct = 33 (previously 0, silently dropped)', r.manaAcquisitionPct, 33);
+check('Soul Harvest -> Abyss: ATK bonus reflects it (33/2 = 16.5%) even while viewing Magic Bolt, not Cloaking', r.atkPct, 16.5, 0.01);
 
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

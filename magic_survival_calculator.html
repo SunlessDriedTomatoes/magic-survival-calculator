@@ -13391,6 +13391,22 @@ const WIZARDS_HAT_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Wizard’s
 // normal ultimates pipeline (see ultimates.json).
 const SPACE_WARP_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Cloaking') || null;
 const SPACE_WARP_EVOLUTION = SPACE_WARP_SPELL ? SPACE_WARP_SPELL.evolutions.find(e => e.name === 'Space Warp') || null : null;
+// Mirage (Cloaking's OTHER Tier-1 evolution): checked via the same null-text scan as Soul Harvest
+// below — its own list of effects has a null-text entry (id -11, value 1), but ALSO a second,
+// separate, properly-texted effect ("Increase Cloaking Duration by 80%", id 352) that already
+// classifies correctly via the normal durationSpell regex. The null-text entry turned out to be a
+// generic "evolution chosen" marker with no numeric meaning of its own (same id/value pattern
+// shared with Space Warp's own null-text marker) — NOT a second, separate stat contribution. An
+// earlier version of this fix special-cased Mirage's own +80% on top of the already-working one,
+// double-counting it; caught by a regression test expecting 170 and getting 250. Lesson: a
+// null-text effect on an evolution doesn't necessarily mean something is missing — always check
+// every OTHER effect on the same evolution for one that already covers the same ground.
+// Soul Harvest (Cloaking's third Tier-1 evolution): "Recover 0.1% HP per enemy killed while in
+// Cloaking, and increase Mana Acquisition by 33%" — a single combined effect with no text template,
+// same category of loss as Adrenaline's ATK share (one part of a multi-stat line silently dropped
+// entirely). The HP recovery half is a non-damage defensive stat, correctly out of scope; the Mana
+// Acquisition half feeds Abyss's conversion and was being lost.
+const SOUL_HARVEST_EVOLUTION = SPACE_WARP_SPELL ? SPACE_WARP_SPELL.evolutions.find(e => e.name === 'Soul Harvest') || null : null;
 
 // Nuclear Fusion (Satellite's own evolution, required by Hyperion): "Increase Damage Multiplier by
 // 1 for each Satellite" — confirmed against a real reported value (Hyperion/Abaddon, 8 Satellites:
@@ -14374,6 +14390,21 @@ function compute() {
     else if (c.kind === 'enemyMaxHpReductionLarge') { enemyMaxHpReductionLargePct += c.amount; }
     else if (c.kind === 'enemyMaxHpModBossWave') { enemyMaxHpModBossWavePct += c.amount; }
     else if (c.kind === 'enemyMaxHpModNormalWave') { enemyMaxHpModNormalWavePct += c.amount; }
+  }
+
+  // Soul Harvest (Cloaking's third Tier-1 evolution): "Recover 0.1% HP per enemy killed while in
+  // Cloaking, and increase Mana Acquisition by 33%" — one combined effect with no text template
+  // (found via the same null-text scan as Mirage below), same shape as Adrenaline's earlier bug.
+  // The HP-recovery half is a non-damage defensive stat, correctly out of scope; the Mana
+  // Acquisition half feeds Abyss's conversion and was being lost entirely. Mana Acquisition is a
+  // global (not per-spell) stat, so this reads Cloaking's OWN spellState directly rather than
+  // gating on the currently-viewed spell — must run before Abyss reads manaAcquisitionPct below
+  // (same ordering bug class as the earlier Oculus/Carnival-vs-critChance fix).
+  if (SOUL_HARVEST_EVOLUTION && SPACE_WARP_SPELL &&
+      spellState(SPACE_WARP_SPELL.id).evolutions.has(SOUL_HARVEST_EVOLUTION.id) &&
+      spellEvolutionTierUnlocked(SPACE_WARP_SPELL, SOUL_HARVEST_EVOLUTION.tier, spellState(SPACE_WARP_SPELL.id).level)) {
+    manaAcquisitionPct += 33;
+    manaAcquisitionLedger.push({ source: 'Soul Harvest (Cloaking Evolution)', amount: 33 });
   }
 
   // Venom (Synergy) converts the general pool from additive summing to multiplicative compounding
