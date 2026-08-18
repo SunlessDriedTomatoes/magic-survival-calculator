@@ -923,11 +923,23 @@ r = compute();
 check('Venom active once all 4 required artifacts are owned', r.venomOwned, true);
 check('Venom: general reduction fraction = 0.34684 (multiplicative base x1.15)', r.enemyMaxHpReductionGeneralFraction, 0.34684, 0.0001);
 check('Venom: vs-Normal Effective Damage multiplier = 1.531018', r.effectiveDamageMultVsNormal, 1.531018, 0.0001);
-// Virus (-10% Elite-only) stays purely additive, unaffected by the general pool or Venom (confirmed scope: general pool only).
+// Virus (-10% Elite-only, single source here) is unaffected by the general pool or Venom (confirmed
+// scope: general pool only) — Venom's own text is specifically "all enemies", not Elite-scoped.
 check('Venom does not touch the Elite-only pool', r.enemyMaxHpReductionElitePct, 10);
 // vs-Elite layers the general (Venom-boosted) pool multiplicatively on top of Virus's own 10%:
 // 1 - (1 - 0.34684) * (1 - 0.10) = 1 - 0.65316*0.9 = 0.412156
 check('Venom: vs-Elite combines general (Venom-boosted) with Elite-only multiplicatively', r.enemyMaxHpReductionVsElite, 0.412156, 0.0001);
+
+// Elite pool with 2 real sources (Virus 10% + Toy Castle 15%) — the general/Venom question above is
+// confirmed via a direct in-game reading, but Elite/Large/Boss-Wave/Normal-Wave can't be read off the
+// stat sheet at all (confirmed by the user), so applying the same multiplicative-within-pool model to
+// them is an explicit assumption per the user's own direction ("assume it works the same way as CDR
+// does... enemy-specific multiply afterward"), not independently confirmed the same way.
+reset();
+own('Virus'); own('Toy Castle');
+r = compute();
+check('Virus + Toy Castle: additive sum still tracked = 25% (10 + 15)', r.enemyMaxHpReductionElitePct, 25);
+check('Virus + Toy Castle: Elite fraction = 0.235 (multiplicative, 1-(1-0.10)(1-0.15)), NOT the additive 0.25', r.enemyMaxHpReductionEliteFraction, 0.235, 0.0001);
 
 // Occult: derived Max HP bonus equal to the general pool's own resolved fraction, additive on top
 // of the normal maxHpBonusPct pool (not a conversion — the enemy-side reduction stays fully intact

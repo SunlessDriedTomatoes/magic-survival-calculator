@@ -1422,10 +1422,14 @@ function compute() {
   // reads from, these just mirror the same additions so their breakdown is visible somewhere.
   const evasionLedger = [], pickupRangeLedger = [], manaAcquisitionLedger = [], moveSpeedLedger = [];
   const maxHpBonusLedger = [], maxHpReductionLedgerPlayer = [];
-  // Enemy-side Max HP reduction — general pool tracked as a ledger too (not just a running sum),
-  // since Venom needs each individual source's own % to build its multiplicative product.
-  let enemyMaxHpReductionElitePct = 0, enemyMaxHpReductionLargePct = 0;
-  let enemyMaxHpModBossWavePct = 0, enemyMaxHpModNormalWavePct = 0;
+  // Enemy-side Max HP reduction — all four pools tracked as ledgers (not just running sums), since
+  // each one's own sources combine multiplicatively with each other (see enemyMaxHpReductionGeneral-
+  // Fraction's own comment below for why), not additively — needs each individual source's own %
+  // to build that product, a running sum alone can't reconstruct it.
+  const enemyMaxHpReductionEliteLedger = [];
+  const enemyMaxHpReductionLargeLedger = [];
+  const enemyMaxHpModBossWaveLedger = [];
+  const enemyMaxHpModNormalWaveLedger = [];
   const enemyMaxHpReductionGeneralLedger = [];
   const cooldownLedger = [];
   const allMagicCooldownLedger = [];
@@ -1457,10 +1461,10 @@ function compute() {
     else if (c.kind === 'maxHp') { maxHpBonusPct += c.amount; maxHpBonusLedger.push({ source, amount: c.amount }); }
     else if (c.kind === 'maxHpReduction') { maxHpReductionPct += c.amount; maxHpReductionLedgerPlayer.push({ source, amount: c.amount }); }
     else if (c.kind === 'enemyMaxHpReductionGeneral') { enemyMaxHpReductionGeneralLedger.push({ source, amount: c.amount }); }
-    else if (c.kind === 'enemyMaxHpReductionElite') { enemyMaxHpReductionElitePct += c.amount; }
-    else if (c.kind === 'enemyMaxHpReductionLarge') { enemyMaxHpReductionLargePct += c.amount; }
-    else if (c.kind === 'enemyMaxHpModBossWave') { enemyMaxHpModBossWavePct += c.amount; }
-    else if (c.kind === 'enemyMaxHpModNormalWave') { enemyMaxHpModNormalWavePct += c.amount; }
+    else if (c.kind === 'enemyMaxHpReductionElite') { enemyMaxHpReductionEliteLedger.push({ source, amount: c.amount }); }
+    else if (c.kind === 'enemyMaxHpReductionLarge') { enemyMaxHpReductionLargeLedger.push({ source, amount: c.amount }); }
+    else if (c.kind === 'enemyMaxHpModBossWave') { enemyMaxHpModBossWaveLedger.push({ source, amount: c.amount }); }
+    else if (c.kind === 'enemyMaxHpModNormalWave') { enemyMaxHpModNormalWaveLedger.push({ source, amount: c.amount }); }
   }
 
   // Soul Harvest (Cloaking's third Tier-1 evolution): "Recover 0.1% HP per enemy killed while in
@@ -1478,36 +1482,47 @@ function compute() {
     manaAcquisitionLedger.push({ source: 'Soul Harvest (Cloaking Evolution)', amount: 33 });
   }
 
-  // General pool combines multiplicatively across sources (each source's own REMAINING-HP fraction
-  // multiplies together — same shape as multiplicativePoolMult, already used for Cooldown/Damage
-  // Taken elsewhere in this file), not additively. Confirmed directly against a real in-game reading
-  // (Reaper's Scythe 13% + Curse 6%, no Venom, character sheet showed 18.2% — matches
+  // Every one of the four pools below combines its OWN sources multiplicatively with each other
+  // (each source's own remaining-HP fraction multiplies together — same shape as
+  // multiplicativePoolMult, already used for Cooldown/Damage Taken elsewhere in this file), not
+  // additively. Confirmed for the general pool directly against a real in-game reading (Reaper's
+  // Scythe 13% + Curse 6%, no Venom, character sheet showed 18.2% — matches
   // 1-(1-0.13)*(1-0.06)=18.22% exactly; plain addition would have given 19%, which is what this used
-  // to compute). Venom (Synergy) then multiplies that already-resolved rate by 1.15 — confirmed by
-  // the same in-game check (18.22% x 1.15 = 20.953%, matching the user's own stated math) — resolved
-  // here, before Occult (below) and maxHpTotal (below) both need the final number. Elite/Large pools
-  // stay their own separate additive-within-themselves pools, confirmed against the user's own
-  // answer to the one open question from this feature's design pass; only the general pool's own
-  // internal combination method changed.
+  // to compute). Venom (Synergy) then multiplies the general pool's already-resolved rate by 1.15 —
+  // confirmed by the same in-game check (18.22% x 1.15 = 20.953%, matching the user's own stated
+  // math) — never the Elite/Large/Boss-Wave/Normal-Wave pools, whose own text is always scoped to a
+  // specific enemy type, not "all enemies" the way Venom's own text is.
   //
-  // An earlier version of this formula (product(1+r/100), Venom's 1.15 folded into the same product,
-  // minus 1) was built against a single forwarded Discord report claiming 2.29x effective damage for
-  // Genome Map+Basilisk+Sample+Venom, and reproduced that number exactly — but neither the report's
-  // own math nor our interpretation of it was ever independently confirmed, and that formula had no
-  // ceiling: it silently exceeded 100% reduction (verified up to 150%+) once more than a few general-
-  // pool sources were combined, which is what the user actually ran into. The real in-game reading
-  // above contradicts that old formula (which would have given 18.22% x1.15-style growth compounding,
-  // not a clean rate-multiply) and is a direct, verifiable observation rather than a secondhand,
-  // self-uncertain claim, so it now takes priority.
+  // Elite/Large/Boss-Wave/Normal-Wave can't be read directly off the in-game stat sheet the way the
+  // general pool could (confirmed by the user — no visible stat for these), so applying the same
+  // multiplicative treatment to them is an explicit assumption, not independently confirmed the same
+  // way — per the user's own direction: "assume it works the same way as CDR does, where the general
+  // pool is multiplicative, then spell-specific/enemy-specific multiply afterward." Elite/Large are
+  // moot in practice until a build owns 2+ sources within the same one of those two pools (currently
+  // only Elite has more than one real source in the dataset — Virus/Toy Castle/Eldritch), but tracked
+  // as ledgers now for when that matters, rather than repeating the same additive bug there too.
+  //
+  // An earlier version of the general pool's own formula (product(1+r/100), Venom's 1.15 folded into
+  // the same product, minus 1) was built against a single forwarded Discord report claiming 2.29x
+  // effective damage for Genome Map+Basilisk+Sample+Venom, and reproduced that number exactly — but
+  // neither the report's own math nor our interpretation of it was ever independently confirmed, and
+  // that formula had no ceiling: it silently exceeded 100% reduction (verified up to 150%+) once more
+  // than a few general-pool sources were combined, which is what the user actually ran into. The real
+  // in-game reading above contradicts that old formula and is a direct, verifiable observation rather
+  // than a secondhand, self-uncertain claim, so it now takes priority.
   const venomOwned = VENOM_SYNERGY && getActiveSynergies().some(s => s.id === VENOM_SYNERGY.id);
+  function multiplicativeReductionFraction(ledgerArr) {
+    return 1 - ledgerArr.reduce((acc, e) => acc * (1 - e.amount / 100), 1);
+  }
   const enemyMaxHpReductionGeneralPct = enemyMaxHpReductionGeneralLedger.reduce((sum, e) => sum + e.amount, 0);
-  const enemyMaxHpReductionGeneralRemainingFraction = enemyMaxHpReductionGeneralLedger.reduce((acc, e) => acc * (1 - e.amount / 100), 1);
-  const enemyMaxHpReductionGeneralBaseFraction = 1 - enemyMaxHpReductionGeneralRemainingFraction;
+  const enemyMaxHpReductionGeneralBaseFraction = multiplicativeReductionFraction(enemyMaxHpReductionGeneralLedger);
   const enemyMaxHpReductionGeneralFraction = venomOwned
     ? enemyMaxHpReductionGeneralBaseFraction * 1.15
     : enemyMaxHpReductionGeneralBaseFraction;
-  const enemyMaxHpReductionEliteFraction = enemyMaxHpReductionElitePct / 100;
-  const enemyMaxHpReductionLargeFraction = enemyMaxHpReductionLargePct / 100;
+  const enemyMaxHpReductionElitePct = enemyMaxHpReductionEliteLedger.reduce((sum, e) => sum + e.amount, 0);
+  const enemyMaxHpReductionLargePct = enemyMaxHpReductionLargeLedger.reduce((sum, e) => sum + e.amount, 0);
+  const enemyMaxHpReductionEliteFraction = multiplicativeReductionFraction(enemyMaxHpReductionEliteLedger);
+  const enemyMaxHpReductionLargeFraction = multiplicativeReductionFraction(enemyMaxHpReductionLargeLedger);
   // Type-scoped pools layer multiplicatively on top of the (already-Venom-resolved) general pool —
   // an Elite/Large enemy is affected by both the general sources AND its own type-specific sources
   // simultaneously, not just whichever is larger.
@@ -1518,8 +1533,10 @@ function compute() {
   // multiplicative factor on top of the general pool. Negative fractions (Imp's own Normal Wave
   // side is a real +10% Max HP INCREASE) fall out of the identical formula correctly: 1 - (-0.10) =
   // 1.10, a 110% remaining-HP factor, with no special-casing needed anywhere downstream.
-  const enemyMaxHpModBossWaveFraction = enemyMaxHpModBossWavePct / 100;
-  const enemyMaxHpModNormalWaveFraction = enemyMaxHpModNormalWavePct / 100;
+  const enemyMaxHpModBossWavePct = enemyMaxHpModBossWaveLedger.reduce((sum, e) => sum + e.amount, 0);
+  const enemyMaxHpModNormalWavePct = enemyMaxHpModNormalWaveLedger.reduce((sum, e) => sum + e.amount, 0);
+  const enemyMaxHpModBossWaveFraction = multiplicativeReductionFraction(enemyMaxHpModBossWaveLedger);
+  const enemyMaxHpModNormalWaveFraction = multiplicativeReductionFraction(enemyMaxHpModNormalWaveLedger);
   const enemyMaxHpReductionVsBossWave = 1 - (1 - enemyMaxHpReductionGeneralFraction) * (1 - enemyMaxHpModBossWaveFraction);
   const enemyMaxHpReductionVsNormalWave = 1 - (1 - enemyMaxHpReductionGeneralFraction) * (1 - enemyMaxHpModNormalWaveFraction);
 
@@ -2168,9 +2185,11 @@ function compute() {
     venomOwned, occultOwned, magicSwordOwned, egoSwordActive, executeThresholdPct, effectiveDamageActive,
     enemyMaxHpReductionGeneralPct, enemyMaxHpReductionGeneralFraction,
     enemyMaxHpReductionElitePct, enemyMaxHpReductionLargePct,
+    enemyMaxHpReductionEliteFraction, enemyMaxHpReductionLargeFraction,
+    enemyMaxHpModBossWavePct, enemyMaxHpModNormalWavePct,
+    enemyMaxHpModBossWaveFraction, enemyMaxHpModNormalWaveFraction,
     enemyMaxHpReductionVsNormal, enemyMaxHpReductionVsElite, enemyMaxHpReductionVsLarge,
     enemyMaxHpReductionVsBossWave, enemyMaxHpReductionVsNormalWave,
-    enemyMaxHpModBossWavePct, enemyMaxHpModNormalWavePct,
     effectiveDamageMultVsNormal, effectiveDamageMultVsElite, effectiveDamageMultVsLarge,
     effectiveDamageMultVsBossWave, effectiveDamageMultVsNormalWave,
     requiredDamageFractionVsNormal, requiredDamageFractionVsElite, requiredDamageFractionVsLarge,
