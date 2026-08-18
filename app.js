@@ -3034,7 +3034,7 @@ function renderTabContent() {
       title: 'Passives — Special', subtitle: null,
       items: GAMEDATA.specialPassives, category: 'Special Passive', hasLevels: false, sortSelectedFirst: true,
     }));
-    tabContent.appendChild(el('div', { style: 'display:grid; grid-template-columns: 1fr 1fr; gap:0; align-items:start;' }, [leftCol, rightCol]));
+    tabContent.appendChild(el('div', { class: 'passives-columns' }, [leftCol, rightCol]));
   } else if (state.activeTab === 'synergies') {
     tabContent.appendChild(renderSynergiesTab());
   } else if (state.activeTab === 'testsubjects') {

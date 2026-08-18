@@ -431,7 +431,7 @@
   .item-card .ic-body { flex: 1; min-width: 0; }
   .item-card.clickable { cursor: pointer; }
   .item-card.clickable:hover { border-color: var(--accent); }
-  .item-card.clickable .ic-name { padding-right: 0; }
+  .item-card.clickable .ic-name, .item-card.clickable .ic-desc { padding-right: 0; }
   .item-card.rarity-Common { border-left: 3px solid #c9c9c9; }
   .item-card.rarity-Rare { border-left: 3px solid #4f9dde; }
   .item-card.rarity-Epic { border-left: 3px solid #a568e0; }
@@ -445,7 +445,10 @@
     background: var(--buff-soft);
   }
   .item-card .ic-name { font-family: var(--font-display); font-size: 14.5px; font-weight: 600; margin-bottom: 3px; padding-right: 84px; }
-  .item-card .ic-desc { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
+  /* Reserve the same right-hand gutter as ic-name — ic-controls is absolutely positioned over the
+     card's top-right corner, so without this, a wrapped description's own text (which has no other
+     reason to avoid that corner) can render straight underneath the stepper buttons. */
+  .item-card .ic-desc { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; padding-right: 84px; }
   .item-card .ic-controls { position: absolute; top: 10px; right: 10px; }
   .ic-stepper { display: flex; align-items: center; gap: 5px; }
   .ic-stepper button {
@@ -456,6 +459,8 @@
   .ic-stepper button:disabled { opacity: 0.3; cursor: not-allowed; }
   .ic-stepper .ic-level { font-family: var(--font-mono); font-size: 12.5px; min-width: 14px; text-align: center; }
   .item-card.active .ic-stepper .ic-level { color: var(--buff); font-weight: 600; }
+
+  .passives-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 0; align-items: start; }
 
   .rarity-tabbar { display: flex; gap: 4px; margin-bottom: 18px; }
   .rarity-tabbar button {
@@ -481,7 +486,12 @@
     .rarity-tabbar { flex-wrap: wrap; }
     .rarity-tabbar button { padding: 8px 12px; }
     .card-grid { grid-template-columns: 1fr; }
-    .item-card .ic-name { padding-right: 78px; }
+    /* Stepper buttons grow to 34px above (touch target) — the reserved gutter has to grow with
+       them, not shrink, or both the name and the wrapped description can run under the buttons.
+       (.item-card.clickable's own padding-right:0 override already outranks this on specificity,
+       so clickable cards — which have no stepper — correctly stay untouched.) */
+    .item-card .ic-name, .item-card .ic-desc { padding-right: 100px; }
+    .passives-columns { grid-template-columns: 1fr; }
   }
 
   /* ---------- Synergy cards (segmented ring progress indicator) ---------- */
@@ -16036,7 +16046,7 @@ function renderTabContent() {
       title: 'Passives — Special', subtitle: null,
       items: GAMEDATA.specialPassives, category: 'Special Passive', hasLevels: false, sortSelectedFirst: true,
     }));
-    tabContent.appendChild(el('div', { style: 'display:grid; grid-template-columns: 1fr 1fr; gap:0; align-items:start;' }, [leftCol, rightCol]));
+    tabContent.appendChild(el('div', { class: 'passives-columns' }, [leftCol, rightCol]));
   } else if (state.activeTab === 'synergies') {
     tabContent.appendChild(renderSynergiesTab());
   } else if (state.activeTab === 'testsubjects') {
