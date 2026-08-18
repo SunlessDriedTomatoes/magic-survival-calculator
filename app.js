@@ -857,6 +857,12 @@ const TEXT_STAT_KEYWORDS = [
   // AMD's. "Damage Multiplier" alone is a strict text superset of the old narrower phrase.
   [/Damage Multiplier/gi, 'stat-xmult'],
   [/Combination Magic Damage/gi, 'stat-combo'],
+  // Bare "(All) Magic Damage" (Transcendence, Matrix, several class per-level bonuses) had no
+  // pattern at all — only the Combination/Multiplier variants above did. Negative lookahead so it
+  // yields to "Damage Multiplier" above rather than fighting it for the shared word "Damage" (e.g.
+  // Deus Ex Machina's "All Magic Damage Multiplier" must stay xmult-colored as one phrase, not
+  // partially reclaimed as amd via an earlier-starting "Magic Damage" match).
+  [/Magic Damage(?!\s+Multiplier)/gi, 'stat-amd'],
   [/Critical (?:Strike )?(?:Rate|Multiplier)/gi, 'stat-crit'],
   [/Amplif(?:y|ied|ication)/gi, 'stat-amp'],
   [/\bATK\b/gi, 'stat-atk'],
@@ -888,7 +894,15 @@ function highlightStatKeywords(text) {
 function effectNode(effect) {
   const resolved = resolveDisplayText(effect.text);
   const cls = effectStatColorClass(effect);
-  return cls ? el('span', { class: cls }, resolved) : resolved;
+  if (cls) return el('span', { class: cls }, resolved);
+  // effectStatColorClass only colors what classifyEffect can fully parse for MATH purposes — a real
+  // trailing qualifier (Aegis: "Amplify ATK by 3% for every 10% Damage Reduction", Jet Engine:
+  // "...for every second the character stays in place") breaks that strict regex even though the
+  // text clearly names a colorable stat. Same keyword fallback describeLineNode already gives
+  // text-only synergies with no effects array at all — effectNode just never had it for structured
+  // effects whose own classification came up empty. May return an array (see cardDescriptionNodes'
+  // own caller, which spreads it) rather than a single node/string.
+  return highlightStatKeywords(resolved);
 }
 // For text that's just a raw description line (no single effect object behind it, e.g. an
 // evolution's flavor-text line) — colors it if its resolved text exactly matches one of the
@@ -3380,7 +3394,11 @@ function cardDescriptionNodes(item) {
       const nodes = [];
       withText.forEach((e, i) => {
         if (i > 0) nodes.push(' — ');
-        nodes.push(effectNode(e));
+        // effectNode may now return an array (its own keyword-fallback path) — spread rather than
+        // push, same reason descriptionNodes already spreads describeLineNode's array results:
+        // el()'s children list must stay flat, one level deep, never nested.
+        const node = effectNode(e);
+        if (Array.isArray(node)) nodes.push(...node); else nodes.push(node);
       });
       return nodes;
     }
