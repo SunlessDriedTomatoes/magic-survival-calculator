@@ -2252,7 +2252,11 @@ function iconUrl(key) {
 function iconImg(key, className) {
   const url = iconUrl(key);
   if (!url) return null;
-  return el('img', { class: 'icon-img' + (className ? ' ' + className : ''), src: url, alt: '' });
+  // Explicit intrinsic width/height (every source sprite is ~62-64px) — every CSS class that sizes
+  // these (.pi-icon, .ic-icon, etc.) still wins via its own width/height rule, so this changes no
+  // layout; it just gives the browser the real decode size upfront instead of inferring it, which
+  // some mobile renderers handle more reliably for small-scale-downscaled inline images.
+  return el('img', { class: 'icon-img' + (className ? ' ' + className : ''), src: url, alt: '', width: '64', height: '64' });
 }
 
 // Native confirm()/alert() can be blocked or unreliable inside a sandboxed iframe (e.g. an
