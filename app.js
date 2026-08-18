@@ -722,7 +722,10 @@ function resolveDisplayText(text) {
     const art = GAMEDATA.artifacts.find(a => a.id === parseInt(id, 10));
     return art ? art.name : '';
   });
-  text = text.replace(/[〔〕『』《》〈〉【】{}]/g, '');
+  // Confirmed dataset-wide (165 unique bracket-wrapped terms) that plain [] is used exactly like
+  // {} and 〈〉 already stripped here — a pure "highlight this term" wrapper around stat/keyword
+  // names, never literal syntax — so it gets the same treatment, not left in as stray punctuation.
+  text = text.replace(/[〔〕『』《》〈〉【】{}\[\]]/g, '');
   // "@" is the raw data's own separator between two originally-distinct clauses bundled into one
   // field (seen in class descriptions and ultimate descriptions alike) — reads as a stray
   // punctuation artifact otherwise. A comma already immediately before it means the two clauses
@@ -831,7 +834,12 @@ function effectStatColorClass(effect) {
 // these are being counted in the damage total. Order matters: longer/more specific phrases are
 // checked first so they aren't partially swallowed by a shorter, broader pattern later in the list.
 const TEXT_STAT_KEYWORDS = [
-  [/Total Magic Damage Multiplier/gi, 'stat-amd'],
+  // Was narrowed to the literal phrase "Total Magic Damage Multiplier" (Arbiter's own wording) —
+  // missed every other real phrasing of the same AMD-bucket concept found dataset-wide ("All Magic
+  // Damage Multiplier" on Deus Ex Machina, or bare "Damage Multiplier" on Telekinetic Sword/Plasma
+  // Ray/Genocide/etc.'s own dynamic-scaling flavor text). "Damage Multiplier" alone is a strict
+  // superset — still matches the original phrase, plus every other one.
+  [/Damage Multiplier/gi, 'stat-amd'],
   [/Combination Magic Damage/gi, 'stat-combo'],
   [/Critical (?:Strike )?(?:Rate|Multiplier)/gi, 'stat-crit'],
   [/Amplif(?:y|ied|ication)/gi, 'stat-amp'],
@@ -2492,7 +2500,10 @@ function renderLeftPane() {
     const ultBox = el('div', { style: 'margin-top:10px; padding-top:10px; border-top:1px solid var(--border-soft);' });
     // The real in-game ultimate description — ult.note is calculator-internal reasoning about how
     // the multiplier was derived and is intentionally never rendered here.
-    const ultDesc = fusion.ultimateDescription ? el('div', { class: 'pi-desc', style: 'margin:4px 0 6px;' }, resolveDisplayText(fusion.ultimateDescription)) : null;
+    // highlightStatKeywords, not a bare string — this real in-game flavor text sometimes names a
+    // stat directly (e.g. Aura Blade's "...strengthened in proportion to Critical Rate"), which
+    // previously rendered fully uncolored since this call bypassed the whole coloring system.
+    const ultDesc = fusion.ultimateDescription ? el('div', { class: 'pi-desc', style: 'margin:4px 0 6px;' }, highlightStatKeywords(resolveDisplayText(fusion.ultimateDescription))) : null;
     if (ult.verified === 'unusable') {
       ultBox.appendChild(el('div', { class: 'pi-name' }, ult.ultimateName));
       if (ultDesc) ultBox.appendChild(ultDesc);
@@ -2677,7 +2688,9 @@ function renderMainPane() {
     }
   }
 
-  pane.appendChild(el('div', { class: 'section' }, [head, statsRow, el('div', { class: 'spell-desc' }, resolveDisplayText(spell.description) || '')]));
+  // highlightStatKeywords, not a bare string — same bypass as the ultimate-description case above
+  // (e.g. Magic Circle's own "Amplify ATK for a certain duration." was rendering fully uncolored).
+  pane.appendChild(el('div', { class: 'section' }, [head, statsRow, el('div', { class: 'spell-desc' }, highlightStatKeywords(resolveDisplayText(spell.description) || ''))]));
 
   pane.appendChild(renderSpellLevelSection(spell, ss));
 }
@@ -3368,7 +3381,10 @@ function cardDescriptionNodes(item) {
         const eff = item.effects[idx++];
         return eff ? String(Math.abs(eff.value)) : '';
       }));
-      return [resolveDisplayText(filled.join(' — '))];
+      // Same keyword fallback as the final return below — without it, this branch's own stat
+      // language (e.g. DNA/Abyss's "ATK is Amplified by...") rendered fully uncolored, since it's
+      // a separate early return that previously skipped straight to a bare string.
+      return highlightStatKeywords(resolveDisplayText(filled.join(' — ')));
     }
   }
   return highlightStatKeywords(resolveDisplayText(item.description.join(' — ')));
