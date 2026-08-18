@@ -3509,6 +3509,31 @@ function cardDescriptionNodes(item) {
         const eff = item.effects[idx++];
         return eff ? String(Math.abs(eff.value)) : '';
       }));
+      // "Current Amplification Effect: □%" is a generic template line the game reuses on 7 items
+      // regardless of which stat bucket the item actually affects — accurate on DNA/Crown (real
+      // effect IS Amplify ATK), but genuinely misleading on Oculus/Carnival (real effect: Critical
+      // Rate), Gaia/Abyss (real effect: ATK), and Matrix (real effect: All Magic Damage) if colored
+      // as AMP. Turns out only DNA and Abyss ever actually reach this branch and display that line
+      // at all — Oculus/Carnival/Gaia/Matrix's OWN effects all carry their own real per-effect text,
+      // so they render through the branch above instead, which only ever shows an item's own
+      // `.effects`, silently dropping this description-only line since no effect matches it (never
+      // a live bug for those 4 in practice). Kept in this list anyway, defensively, in case a future
+      // data refresh ever changes that. The □-filled number itself is also just this item's own
+      // static raw effect value (often a bare marker, e.g. Abyss's is literally `value: 1`), not a
+      // live computed figure, so recoloring it to the "correct" bucket would still overstate its
+      // precision — left fully plain instead, processed per-line (not as one joined blob) so the
+      // rest of the item's own lines still get their own real, correct keyword coloring.
+      const AMPLIFICATION_LABEL_MISMATCHED = ['Oculus', 'Carnival', 'Gaia', 'Abyss', 'Matrix'];
+      if (AMPLIFICATION_LABEL_MISMATCHED.includes(item.name)) {
+        const nodes = [];
+        filled.forEach((line, i) => {
+          if (i > 0) nodes.push(' — ');
+          const resolved = resolveDisplayText(line);
+          if (/^Current Amplification Effect:/.test(resolved)) nodes.push(resolved);
+          else nodes.push(...highlightStatKeywords(resolved));
+        });
+        return nodes;
+      }
       // Same keyword fallback as the final return below — without it, this branch's own stat
       // language (e.g. DNA/Abyss's "ATK is Amplified by...") rendered fully uncolored, since it's
       // a separate early return that previously skipped straight to a bare string.
