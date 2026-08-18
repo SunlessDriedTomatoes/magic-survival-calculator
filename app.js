@@ -1345,7 +1345,19 @@ function gatherActiveEffects(spellId) {
   // (synergyNoopViaLeniency) — those synergies have an empty .effects array by construction, since
   // their entire modeled benefit was the target-artifact text this calculator can't apply anyway.
   for (const syn of getActiveSynergies()) {
-    for (const eff of syn.effects) list.push({ source: syn.name + ' (Synergy)', effect: eff });
+    // Wonderland (id 26): a real data duplicate, not a genuine double-stack — its raw effects array
+    // has THREE entries (Size -9%, Max HP -9%, Max HP -9% again under a different id) but its own
+    // description only ever names TWO distinct effects, and no other synergy/item in the dataset
+    // repeats the same "Decrease Max HP of all enemies" line twice within one item's own effects.
+    // Confirmed via a real in-game build: the general reduction pool matched 71.24% (Max HP counted
+    // twice) rather than 66.92% (counted once) before this fix — deliberately un-deduped elsewhere
+    // in this file (Wizard's own two genuinely-separate Magic Bolt Lv+1 grants, Archmage's two
+    // Combination Magic Damage lines) only because those cases were confirmed-or-unconfirmed real
+    // double grants, not confirmed duplicates like this one.
+    const effects = syn.name === 'Wonderland'
+      ? syn.effects.filter((eff, i) => syn.effects.findIndex(e => e.text === eff.text) === i)
+      : syn.effects;
+    for (const eff of effects) list.push({ source: syn.name + ' (Synergy)', effect: eff });
   }
   return list;
 }

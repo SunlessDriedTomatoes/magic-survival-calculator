@@ -12,8 +12,8 @@ const localStorageStub = { getItem: k => (k in store ? store[k] : null), setItem
 const sandbox = { GAMEDATA, ICON_MAP, ICON_DATA, document: documentStub, localStorage: localStorageStub, console, window: {} };
 vm.createContext(sandbox);
 const code = fs.readFileSync(appJsPath, 'utf8');
-vm.runInContext(code + '\nthis.__expose = { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX, computeSpellTotalCount };', sandbox, { filename: 'app.js' });
-const { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX, computeSpellTotalCount } = sandbox.__expose;
+vm.runInContext(code + '\nthis.__expose = { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX, computeSpellTotalCount, getActiveSynergies };', sandbox, { filename: 'app.js' });
+const { state, compute, bonusKey, spellState, allSelectedEvolutionIds, setSpellLevel, selectMagicCircleFusion, isUltimateUnlocked, classGatesAnyUltimate, testSubjectGatesAnyUltimate, PASSIVES_POST_MAX, computeSpellTotalCount, getActiveSynergies } = sandbox.__expose;
 
 function own(name) {
   const art = GAMEDATA.artifacts.find(a => a.name === name);
@@ -940,6 +940,20 @@ own('Virus'); own('Toy Castle');
 r = compute();
 check('Virus + Toy Castle: additive sum still tracked = 25% (10 + 15)', r.enemyMaxHpReductionElitePct, 25);
 check('Virus + Toy Castle: Elite fraction = 0.235 (multiplicative, 1-(1-0.10)(1-0.15)), NOT the additive 0.25', r.enemyMaxHpReductionEliteFraction, 0.235, 0.0001);
+
+// Wonderland (Synergy): a real data duplicate, not a genuine double-stack — its raw effects array
+// carries "Decrease Max HP of all enemies by 9%" TWICE (different ids, identical text), but its own
+// description only ever names two distinct effects (Size -9%, Max HP -9%). Confirmed via a real
+// in-game build (general pool matched 71.24% only when Wonderland's Max HP line was double-counted;
+// the correct single-count value is 66.92%) — deduped by resolved text within gatherActiveEffects'
+// own synergy loop, scoped only to Wonderland by name so Wizard's genuinely-separate double Magic
+// Bolt Lv+1 grant elsewhere is untouched.
+reset();
+own('Toy Castle'); own('Fairy'); own('Unicorn'); own('Storybook'); // Wonderland's 4 required artifacts
+r = compute();
+check('Wonderland active once all 4 required artifacts are owned', getActiveSynergies().some(s => s.name === 'Wonderland'), true);
+check('Wonderland: general pool = 9% (its own Max HP line counted ONCE, not twice)', r.enemyMaxHpReductionGeneralPct, 9);
+check('Wonderland: general reduction fraction = 0.09 (single source, additive and multiplicative agree)', r.enemyMaxHpReductionGeneralFraction, 0.09, 0.0001);
 
 // Occult: derived Max HP bonus equal to the general pool's own resolved fraction, additive on top
 // of the normal maxHpBonusPct pool (not a conversion — the enemy-side reduction stays fully intact
