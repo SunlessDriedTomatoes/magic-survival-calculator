@@ -895,41 +895,51 @@ state.selectedSpellId = 2; // Fireball — not one of Shuriken's two targeted sp
 r = compute();
 check('Shuriken: Fireball (untargeted) gets +0% critChancePct', r.critChancePct, 0);
 
-// --- Enemy Max HP reduction (general/Elite/Large pools) + Venom's multiplicative transform +
-// Occult's derived Max HP bonus + Magic Sword's Execute threshold, all confirmed via Kanban card
-// e06/e07's research pass this session. ---
+// --- Enemy Max HP reduction (general/Elite/Large pools) + Venom's rate multiplier + Occult's
+// derived Max HP bonus + Magic Sword's Execute threshold. The general pool's own combination
+// method (additive vs. multiplicative) was corrected after the original additive/Venom-compounding
+// formula was found to produce >100% reduction with a realistic set of owned sources — replaced
+// with a multiplicative-remaining-fraction model (1-∏(1-r_i/100), same shape as CDR/Damage Taken
+// elsewhere in this file) after the user directly confirmed it against their own in-game character
+// sheet (Reaper's Scythe 13% + Curse 6%, no Venom -> 18.2% shown in-game, matching this formula to
+// the decimal; plain addition gives 19%). Venom multiplies that already-resolved rate by 1.15,
+// also confirmed the same way (18.22% x1.15 = 20.953%, matching the user's own stated math). See
+// app.js's own comment on enemyMaxHpReductionGeneralFraction for the full account, including why
+// the earlier community-report-based formula (which this replaces) was never actually confirmed. ---
 reset();
 own('Basilisk'); // general -10%
 own('Sample'); // general -3%
 r = compute();
-check('Basilisk + Sample (no Venom): general pool = 13% additive', r.enemyMaxHpReductionGeneralPct, 13);
-check('No Venom: general reduction fraction = additive sum / 100 = 0.13', r.enemyMaxHpReductionGeneralFraction, 0.13);
+check('Basilisk + Sample (no Venom): additive sum still tracked = 13%', r.enemyMaxHpReductionGeneralPct, 13);
+check('No Venom: general reduction fraction = 1-(1-0.10)(1-0.03) = 0.127, NOT the additive 0.13', r.enemyMaxHpReductionGeneralFraction, 0.127, 0.0001);
 check('Venom not active without its full requirement set', r.venomOwned, false);
 
-// Venom's own community-reported worked example, reproduced exactly: Basilisk (10%) + Sample (3%)
-// + Genome Map (20%, required by Venom) + Venom's own x1.15 -> product(1.1 * 1.03 * 1.2) * 1.15 - 1
-// = 1.56354 - 1 = 0.56354 (56.354%), global damage multiplier 1/(1-0.56354) = 2.29.
+// Genome Map (20%) + Basilisk (10%) + Sample (3%) + Venom's own 4th required artifact (Virus,
+// Elite-only, doesn't touch the general pool) -> base = 1-(1-0.20)(1-0.10)(1-0.03) = 0.3016,
+// Venom-boosted = 0.3016 x 1.15 = 0.34684, effective multiplier = 1/(1-0.34684) = 1.531018.
 reset();
 own('Basilisk'); own('Sample'); own('Genome Map'); own('Virus'); // Venom's 4 required artifacts
 r = compute();
 check('Venom active once all 4 required artifacts are owned', r.venomOwned, true);
-check('Venom: general reduction fraction = 0.56354 (matches community-reported math exactly)', r.enemyMaxHpReductionGeneralFraction, 0.56354, 0.0001);
-check('Venom: vs-Normal Effective Damage multiplier = 2.29 (1 / (1 - 0.56354))', r.effectiveDamageMultVsNormal, 2.290, 0.01);
-// Virus (-10% Elite-only) stays purely additive, unaffected by Venom (confirmed scope: general pool only).
+check('Venom: general reduction fraction = 0.34684 (multiplicative base x1.15)', r.enemyMaxHpReductionGeneralFraction, 0.34684, 0.0001);
+check('Venom: vs-Normal Effective Damage multiplier = 1.531018', r.effectiveDamageMultVsNormal, 1.531018, 0.0001);
+// Virus (-10% Elite-only) stays purely additive, unaffected by the general pool or Venom (confirmed scope: general pool only).
 check('Venom does not touch the Elite-only pool', r.enemyMaxHpReductionElitePct, 10);
 // vs-Elite layers the general (Venom-boosted) pool multiplicatively on top of Virus's own 10%:
-// 1 - (1 - 0.56354) * (1 - 0.10) = 1 - 0.43646*0.9 = 1 - 0.392814 = 0.607186
-check('Venom: vs-Elite combines general (Venom-boosted) with Elite-only multiplicatively', r.enemyMaxHpReductionVsElite, 0.607186, 0.0001);
+// 1 - (1 - 0.34684) * (1 - 0.10) = 1 - 0.65316*0.9 = 0.412156
+check('Venom: vs-Elite combines general (Venom-boosted) with Elite-only multiplicatively', r.enemyMaxHpReductionVsElite, 0.412156, 0.0001);
 
-// Occult: derived Max HP bonus equal to the general pool's own resolved %, additive on top of the
-// normal maxHpBonusPct pool (not a conversion — the enemy-side reduction stays fully intact too).
+// Occult: derived Max HP bonus equal to the general pool's own resolved fraction, additive on top
+// of the normal maxHpBonusPct pool (not a conversion — the enemy-side reduction stays fully intact
+// too). Basilisk(10)+Sample(3)+Occult(5), no Venom: 1-(1-0.10)(1-0.03)(1-0.05) = 0.17065.
 reset();
-own('Basilisk'); own('Sample'); // general pool = 13%, no Venom
+own('Basilisk'); own('Sample'); // general pool, no Venom
 own('Occult'); // contributes its own -5% to the SAME general pool, then reads the total back
 r = compute();
-check('Occult: general pool includes its own -5% (13 + 5 = 18%)', r.enemyMaxHpReductionGeneralPct, 18);
-check('Occult: player Max HP bonus = 18% (matches the resolved general pool exactly)', r.maxHpBonusPct, 18);
-check('Occult: enemy-side reduction is NOT consumed by granting the player HP (both apply)', r.enemyMaxHpReductionGeneralFraction, 0.18, 0.001);
+check('Occult: additive sum still tracked = 18% (13 + 5)', r.enemyMaxHpReductionGeneralPct, 18);
+check('Occult: general reduction fraction = 0.17065 (multiplicative, not the additive 0.18)', r.enemyMaxHpReductionGeneralFraction, 0.17065, 0.0001);
+check('Occult: player Max HP bonus = 17.065% (matches the resolved general pool fraction exactly)', r.maxHpBonusPct, 17.065, 0.001);
+check('Occult: enemy-side reduction is NOT consumed by granting the player HP (both apply)', r.enemyMaxHpReductionGeneralFraction, 0.17065, 0.001);
 
 // Mutagen (-15% Large-only) stays additive and independent of the general pool when no general
 // pool sources are owned at all.
@@ -955,10 +965,10 @@ check('Effective Damage panel is active once Magic Sword is owned', r.effectiveD
 check('Magic Sword: expectedEffectiveVsNormal = expected x 1.25', r.expectedEffectiveVsNormal, r.expected * 1.25, 0.01);
 
 reset();
-own('Magic Sword'); own('Basilisk'); own('Sample'); // general pool 13%, Execute 20%, no Venom
+own('Magic Sword'); own('Basilisk'); own('Sample'); // general pool (multiplicative) = 0.127, Execute 20%, no Venom
 r = compute();
-// requiredDamageFraction = (1 - 0.13) * (1 - 0.20) = 0.87 * 0.80 = 0.696 -> multiplier = 1/0.696
-check('Magic Sword + Max HP reduction compound (not independent): vs-Normal multiplier = 1/0.696', r.effectiveDamageMultVsNormal, 1 / 0.696, 0.001);
+// requiredDamageFraction = (1 - 0.127) * (1 - 0.20) = 0.873 * 0.80 = 0.6984 -> multiplier = 1/0.6984
+check('Magic Sword + Max HP reduction compound (not independent): vs-Normal multiplier = 1/0.6984', r.effectiveDamageMultVsNormal, 1 / 0.6984, 0.001);
 
 // Ego Sword (Synergy): raises Magic Sword's Execute threshold from 20% to 25% (a replacement, not
 // an addition — "increases TO 25%" per its own raw text, not "increases BY").
@@ -1119,12 +1129,14 @@ check('Widowmaker: critMulti = 213 (200 base + 13 from Widowmaker)', r.critMulti
 reset();
 own('Basilisk'); own('Occult'); own('Gaia');
 r = compute();
-check('Occult + Basilisk: general pool = 15% (10 + 5)', r.enemyMaxHpReductionGeneralPct, 15);
-// maxHpBonusPct = Gaia's own +50% Max HP + Occult's derived +15% (equal to the resolved pool)
-check('Occult + Gaia: maxHpBonusPct = 65 (Gaia 50 + Occult 15)', r.maxHpBonusPct, 65);
-check('Occult + Gaia: maxHpTotal = 330 (200 base x 1.65)', r.maxHpTotal, 330, 0.01);
-// Gaia: +3% ATK per 20 Max HP -> 330/20 x 3 = 49.5%
-check('Occult -> Gaia: ATK bonus reflects the Occult-inflated Max HP (49.5%, not just Gaia\'s own 37.5%)', r.atkPct, 49.5, 0.01);
+check('Occult + Basilisk: additive sum still tracked = 15% (10 + 5)', r.enemyMaxHpReductionGeneralPct, 15);
+// General pool is multiplicative: 1-(1-0.10)(1-0.05) = 0.145, not the additive 0.15.
+check('Occult + Basilisk: general reduction fraction = 0.145 (multiplicative, not additive 0.15)', r.enemyMaxHpReductionGeneralFraction, 0.145, 0.0001);
+// maxHpBonusPct = Gaia's own +50% Max HP + Occult's derived +14.5% (equal to the resolved fraction)
+check('Occult + Gaia: maxHpBonusPct = 64.5 (Gaia 50 + Occult 14.5)', r.maxHpBonusPct, 64.5, 0.01);
+check('Occult + Gaia: maxHpTotal = 329 (200 base x 1.645)', r.maxHpTotal, 329, 0.01);
+// Gaia: +3% ATK per 20 Max HP -> 329/20 x 3 = 49.35%
+check('Occult -> Gaia: ATK bonus reflects the Occult-inflated Max HP (49.35%, not just Gaia\'s own 37.5%)', r.atkPct, 49.35, 0.01);
 
 // --- Regression: Oculus/Carnival's crit-chance contributions used to run AFTER critChance was
 // already computed and clamped, so their own bonus reached critChancePct's displayed total but

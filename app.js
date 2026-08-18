@@ -354,16 +354,16 @@ const JOKER_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Joker') || null;
 // effect, not a live-combat condition, so it's a normal always-resolvable Active Sources entry —
 // same category as Occult's Max HP bonus, not the Conditional Modifiers group.
 const WIDOWMAKER_ARTIFACT = GAMEDATA.artifacts.find(a => a.name === 'Widowmaker') || null;
-// Enemy Max HP reduction — three independently-tracked additive pools (general/Elite/Large,
-// confirmed via raw effect ids 54/143/83), feeding Effective Damage together with Execute
-// thresholds below. Venom (Synergy) converts ONLY the general pool from additive summing to
-// multiplicative compounding — confirmed against its own raw text ("Max HP Reduction Rate of all
-// enemies 〈x1.15〉") and cross-checked exactly against community-reported math: product(1+r_i) for
-// each general-pool source, with Venom's own 1.15 folded in as one more term in that same product
-// (equivalent to "multiply the whole product by 1.15" since multiplication is associative), minus
-// 1 for the final reduction fraction. Venom's own required artifacts (Genome Map/Basilisk/Sample)
-// are themselves general-pool contributors, so the pool can never be empty when Venom is active —
-// no need to special-case that edge. Elite/Large pools stay purely additive regardless of Venom.
+// Enemy Max HP reduction — three independently-tracked pools (general/Elite/Large, confirmed via
+// raw effect ids 54/143/83), feeding Effective Damage together with Execute thresholds below. The
+// general pool's own sources combine multiplicatively with each other (each source's own remaining-
+// HP fraction multiplies together, 1-∏(1-r_i/100)), confirmed against a real in-game reading
+// (Reaper's Scythe 13% + Curse 6%, no Venom, character sheet read 18.2%, matching this formula
+// exactly — plain addition gives 19%, which is what an earlier version of this used to compute).
+// Venom (Synergy) then multiplies that already-resolved rate by 1.15 — confirmed the same way
+// (18.22% x1.15 = 20.953%). Elite/Large pools stay their own separate additive-within-themselves
+// pools regardless of Venom, confirmed against the user's own answer to this feature's original
+// design question — only the general pool's own internal combination method changed here.
 const VENOM_SYNERGY = GAMEDATA.synergies.find(s => s.name === 'Venom') || null;
 // Occult: "Increase [Max HP] by the amount of [All Enemies' Max HP Reduction Rate]" — a dynamic,
 // self-referential effect (raw effect id 84 has no text template at all, so classifyEffect can
@@ -1478,15 +1478,34 @@ function compute() {
     manaAcquisitionLedger.push({ source: 'Soul Harvest (Cloaking Evolution)', amount: 33 });
   }
 
-  // Venom (Synergy) converts the general pool from additive summing to multiplicative compounding
-  // (see VENOM_SYNERGY comment above) — resolved here, before Occult (below) and maxHpTotal (below)
-  // both need the final number. Elite/Large pools always stay additive, confirmed against the
-  // user's own answer to the one open question from this feature's design pass.
+  // General pool combines multiplicatively across sources (each source's own REMAINING-HP fraction
+  // multiplies together — same shape as multiplicativePoolMult, already used for Cooldown/Damage
+  // Taken elsewhere in this file), not additively. Confirmed directly against a real in-game reading
+  // (Reaper's Scythe 13% + Curse 6%, no Venom, character sheet showed 18.2% — matches
+  // 1-(1-0.13)*(1-0.06)=18.22% exactly; plain addition would have given 19%, which is what this used
+  // to compute). Venom (Synergy) then multiplies that already-resolved rate by 1.15 — confirmed by
+  // the same in-game check (18.22% x 1.15 = 20.953%, matching the user's own stated math) — resolved
+  // here, before Occult (below) and maxHpTotal (below) both need the final number. Elite/Large pools
+  // stay their own separate additive-within-themselves pools, confirmed against the user's own
+  // answer to the one open question from this feature's design pass; only the general pool's own
+  // internal combination method changed.
+  //
+  // An earlier version of this formula (product(1+r/100), Venom's 1.15 folded into the same product,
+  // minus 1) was built against a single forwarded Discord report claiming 2.29x effective damage for
+  // Genome Map+Basilisk+Sample+Venom, and reproduced that number exactly — but neither the report's
+  // own math nor our interpretation of it was ever independently confirmed, and that formula had no
+  // ceiling: it silently exceeded 100% reduction (verified up to 150%+) once more than a few general-
+  // pool sources were combined, which is what the user actually ran into. The real in-game reading
+  // above contradicts that old formula (which would have given 18.22% x1.15-style growth compounding,
+  // not a clean rate-multiply) and is a direct, verifiable observation rather than a secondhand,
+  // self-uncertain claim, so it now takes priority.
   const venomOwned = VENOM_SYNERGY && getActiveSynergies().some(s => s.id === VENOM_SYNERGY.id);
   const enemyMaxHpReductionGeneralPct = enemyMaxHpReductionGeneralLedger.reduce((sum, e) => sum + e.amount, 0);
+  const enemyMaxHpReductionGeneralRemainingFraction = enemyMaxHpReductionGeneralLedger.reduce((acc, e) => acc * (1 - e.amount / 100), 1);
+  const enemyMaxHpReductionGeneralBaseFraction = 1 - enemyMaxHpReductionGeneralRemainingFraction;
   const enemyMaxHpReductionGeneralFraction = venomOwned
-    ? enemyMaxHpReductionGeneralLedger.reduce((acc, e) => acc * (1 + e.amount / 100), 1) * 1.15 - 1
-    : enemyMaxHpReductionGeneralPct / 100;
+    ? enemyMaxHpReductionGeneralBaseFraction * 1.15
+    : enemyMaxHpReductionGeneralBaseFraction;
   const enemyMaxHpReductionEliteFraction = enemyMaxHpReductionElitePct / 100;
   const enemyMaxHpReductionLargeFraction = enemyMaxHpReductionLargePct / 100;
   // Type-scoped pools layer multiplicatively on top of the (already-Venom-resolved) general pool —
@@ -2841,7 +2860,7 @@ function renderResultsPane() {
       edSection.appendChild(el('div', { class: 'note' }, 'Occult: +' + fmt(r.enemyMaxHpReductionGeneralFraction * 100, 1) + '% Max HP (from the general reduction pool total, already included in your Max HP above).'));
     }
     if (r.venomOwned) {
-      edSection.appendChild(el('div', { class: 'note' }, 'Venom: the general pool above compounds multiplicatively across its sources instead of adding, per its own "x1.15" effect.'));
+      edSection.appendChild(el('div', { class: 'note' }, 'Venom: multiplies the general pool\'s already-resolved reduction rate by x1.15, per its own effect — the pool itself always combines its sources multiplicatively (not additively), Venom or not.'));
     }
     if (r.enemyMaxHpModBossWavePct !== 0 || r.enemyMaxHpModNormalWavePct !== 0) {
       edSection.appendChild(el('div', { class: 'note' }, 'Imp: -' + fmt(r.enemyMaxHpModBossWavePct, 0) + '% Max HP vs. Boss Wave Monsters, +' + fmt(-r.enemyMaxHpModNormalWavePct, 0) + '% vs. Normal Wave Monsters — its own separate pool, layered on top of the general pool above rather than folded into it.'));
