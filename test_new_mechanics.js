@@ -1085,5 +1085,29 @@ r = compute();
 check('Adrenaline: ATK +5% (previously silently dropped)', r.atkPct, 5);
 check('Adrenaline: Critical Strike Rate +5% (already worked via its own separate entry)', r.critChancePct, 5);
 
+// --- "Increase/Decrease the number of X by N%/NX" — previously only matched "Increase" (Phoenix/
+// Reaction/Winter Storm's "Decrease...by N%" fusions silently did nothing), and treated the raw
+// number as a flat integer add regardless of suffix, wildly inflating percentage-based grants
+// (Machine Arm's "+35%" turned Energy Bolt's count 5 -> 40 instead of ~7). Confirmed with the user:
+// %/X suffixes scale off the spell's own base count, consistent with every other additive "by N%"
+// pool in this dataset. ---
+reset();
+own('Machine Arm');
+check('Machine Arm: Energy Bolt count = 7 (base 5 + round(5 x 0.35) = 5+2)', computeSpellTotalCount(GAMEDATA.spells[16]), 7);
+
+reset();
+const phoenixFusionCountTest = GAMEDATA.fusions.find(f => f.name === 'Phoenix');
+state.fusionIds = [phoenixFusionCountTest.id];
+const tsunamiSpellCountTest = Object.values(GAMEDATA.spells).find(s => s.name === 'Tsunami');
+check('Phoenix: Tsunami count = 4 (base 8 - round(8 x 0.50) = 8-4, "Decrease" now works at all)', computeSpellTotalCount(GAMEDATA.spells[tsunamiSpellCountTest.id]), 4);
+
+reset();
+const demonEqFusionCountTest = GAMEDATA.fusions.find(f => f.name === 'Demon Equation');
+state.fusionIds = [demonEqFusionCountTest.id];
+const fireballSpellCountTest = Object.values(GAMEDATA.spells).find(s => s.name === 'Fireball');
+// Demon Equation: "Increase the number of Fireballs by 4X" -> base + round(base x 4)
+const fireballBaseCountTest = GAMEDATA.spells[fireballSpellCountTest.id].base.number;
+check('Demon Equation: Fireball count includes base + round(base x 4) from its own "4X" grant', computeSpellTotalCount(GAMEDATA.spells[fireballSpellCountTest.id]) >= fireballBaseCountTest + Math.round(fireballBaseCountTest * 4), true);
+
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

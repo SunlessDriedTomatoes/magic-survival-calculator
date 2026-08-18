@@ -528,7 +528,12 @@ function computeSpellTotalCount(spell) {
   let count = spell.base.number;
   for (const { effect } of gatherActiveEffects(spell.id)) {
     const c = classifyEffect(effect, spell.name);
-    if (c.kind === 'count' || c.kind === 'countx') count += c.amount;
+    if (c.kind === 'count') count += c.amount;
+    // countPct/countx scale off the spell's own base count (confirmed: percentage-of-base, not a
+    // literal flat add — see classifyEffect's numMatch comment). Rounded per-source so it combines
+    // cleanly with flat integer sources via simple addition, same as a real in-game projectile count.
+    else if (c.kind === 'countPct') count += Math.round(spell.base.number * c.amount / 100);
+    else if (c.kind === 'countx') count += Math.round(spell.base.number * c.amount);
   }
   return count;
 }
@@ -1027,13 +1032,25 @@ function classifyEffect(effect, spellName) {
   }
   // number of casts/projectiles — "the number of X" (most spells) and "the maximum number of X"
   // (Shield specifically, e.g. Barrier/Reconstruct/Bishop's own "+1 Shield") are the same kind of
-  // grant under two different phrasings in the raw text.
-  const numMatch = text.match(/^Increase the (?:maximum )?number of (.+?) by ([\d.]+)(X)?/i);
+  // grant under two different phrasings in the raw text. Previously "Increase"-only (a handful of
+  // fusions use "Decrease the number of X by N%" — Phoenix/Reaction/Winter Storm — and silently did
+  // nothing) and treated every suffix as a flat integer add regardless of whether the raw text said
+  // "by 1" (a real flat grant), "by 35%" (35% OF THE SPELL'S BASE COUNT), or "by 3X" (3x the base) —
+  // confirmed via the "increase...BY" phrasing (consistently additive-to-base everywhere else in
+  // this dataset) that %/X suffixes must scale off the spell's own base count, not be added as a
+  // literal raw number (Machine Arm's "+35%" was inflating Energy Bolt's count 5 -> 40 before this
+  // fix). The actual base-count multiplication happens where this kind is consumed (countPct/countx
+  // need the spell's own base.number, which classifyEffect itself doesn't have access to).
+  const numMatch = text.match(/^(Increase|Decrease) the (?:maximum )?number of (.+?) by ([\d.]+)(%|X)?/i);
   if (numMatch) {
-    const [, target, amt, isX] = numMatch;
+    const [, verb, target, amtStr, suffix] = numMatch;
     // target is pluralized spell name loosely; match by spell name prefix
     if (spellName && (target.toLowerCase().includes(spellName.toLowerCase()) )) {
-      return isX ? { kind: 'countx', amount: parseFloat(amt) } : { kind: 'count', amount: parseFloat(amt) };
+      const sign = /^Decrease$/i.test(verb) ? -1 : 1;
+      const amt = sign * parseFloat(amtStr);
+      if (suffix === '%') return { kind: 'countPct', amount: amt };
+      if (suffix && suffix.toUpperCase() === 'X') return { kind: 'countx', amount: amt };
+      return { kind: 'count', amount: amt };
     }
   }
   return { kind: 'other', label: text };
@@ -1340,7 +1357,9 @@ function compute() {
     else if (c.kind === 'size') { sizePct += c.amount; }
     else if (c.kind === 'duration') { durationPct += c.amount; }
     else if (c.kind === 'durationSpell') { durationSpellPct += c.amount; }
-    else if (c.kind === 'count' || c.kind === 'countx') { countFlat += c.amount; }
+    else if (c.kind === 'count') { countFlat += c.amount; }
+    else if (c.kind === 'countPct') { countFlat += Math.round((spell.base ? spell.base.number : 0) * c.amount / 100); }
+    else if (c.kind === 'countx') { countFlat += Math.round((spell.base ? spell.base.number : 0) * c.amount); }
     else if (c.kind === 'evasion') { evasionPct += c.amount; evasionLedger.push({ source, amount: c.amount }); }
     else if (c.kind === 'pickupRange') { pickupRangePct += c.amount; pickupRangeLedger.push({ source, amount: c.amount }); }
     else if (c.kind === 'manaAcquisition') { manaAcquisitionPct += c.amount; manaAcquisitionLedger.push({ source, amount: c.amount }); }
