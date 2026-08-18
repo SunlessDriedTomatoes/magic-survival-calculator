@@ -1073,5 +1073,17 @@ const expectedCombined = 1 - generalRemaining * bossWaveOwnRemaining;
 check('Imp + Basilisk: vs-Boss-Wave combines both pools multiplicatively, order-independent', r.enemyMaxHpReductionVsBossWave, expectedCombined, 0.0001);
 check('Imp + Basilisk: vs-Boss-Wave combined = 0.19 (1 - 0.9x0.9)', r.enemyMaxHpReductionVsBossWave, 0.19, 0.0001);
 
+// --- Adrenaline (Special Passive): "Increase ATK, Critical Strike Rate, Movement Speed by 5%" —
+// a combined summary line naming all three stats at once. Crit Rate/Movement Speed also exist as
+// their own separate, individually-formatted effect entries and were already correctly classified;
+// only the ATK share (which has no such separate entry) was silently dropped, since the combined
+// line never matched the ATK-alone pattern. ---
+reset();
+const adrenaline = GAMEDATA.specialPassives.find(p => p.name === 'Adrenaline');
+state.bonusSelections[bonusKey({ ...adrenaline, category: 'Special Passive' })] = 1;
+r = compute();
+check('Adrenaline: ATK +5% (previously silently dropped)', r.atkPct, 5);
+check('Adrenaline: Critical Strike Rate +5% (already worked via its own separate entry)', r.critChancePct, 5);
+
 console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILURES');
 process.exit(fails === 0 ? 0 : 1);

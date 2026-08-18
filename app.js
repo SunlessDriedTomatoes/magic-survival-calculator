@@ -877,6 +877,13 @@ function classifyEffect(effect, spellName) {
     return { kind: 'mdmg', amount: /^Decrease/.test(text) ? -Math.abs(effect.value) : Math.abs(effect.value) };
   }
   if (/^Increase ATK by [\d.]+%/.test(text)) return { kind: 'atk', amount: effect.value };
+  // Adrenaline's own combined summary line ("Increase ATK, Critical Strike Rate, Movement Speed by
+  // 5%") names all three stats at once with one shared value, but only Crit Rate/Movement Speed
+  // also exist as their own separate, individually-formatted effect entries — this combined text
+  // never matches the ATK-alone pattern above, so its ATK share was silently dropped entirely.
+  // Extracting just the ATK portion here doesn't double-count Crit Rate/Movement Speed, since those
+  // are still classified normally via their own separate entries.
+  if (/^Increase ATK,.*by [\d.]+%/.test(text)) return { kind: 'atk', amount: effect.value };
   // Crit is matched by text only, never by id — id 15 (which "Critical Strike Multiplier" usually
   // carries) is also reused for an unrelated execute-threshold effect and a non-crit-damage bonus
   // on other items, so id alone isn't trustworthy here at all (unlike ATK/AMP/AMD, which have an
