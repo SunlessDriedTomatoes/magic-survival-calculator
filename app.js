@@ -3464,7 +3464,22 @@ function renderSynergiesTab() {
 // everywhere else too since it's derived from the same underlying data.
 function cardDescriptionNodes(item) {
   if (item.effects && item.effects.length) {
-    const withText = item.effects.filter(e => e.text);
+    // Deduped by exact resolved text — a systematic audit (prompted by finding Wonderland double-
+    // counting its own Max HP reduction) found 7 items (Meat, Gravity Orb, Worldtree Leaf, Pandora's
+    // Box, Clockwork, Holy Chest, Longinus' Spear) whose raw effects carry a generic "(Cooldown: Ns)"
+    // marker (id 706, confirmed used consistently for exactly this across 9 items total) ALONGSIDE a
+    // second, item-specific effect that also resolves to the identical "(Cooldown: Ns)" text — a
+    // genuine data duplicate (these items' real "what happens on trigger" text has no numeric stat to
+    // describe, e.g. Meat's "Generate Life Orbs near the character", so extraction apparently fell
+    // back to repeating the cooldown text for that slot too), not a real double-stack. Unlike the
+    // Wonderland fix, this is safe to dedupe generally rather than scoping to specific item names —
+    // cardDescriptionNodes is never used for School Classes (Wizard's genuinely-separate double
+    // Magic Bolt Lv+1 grant, Archmage's still-unconfirmed double Combination Magic Damage line both
+    // render through a different path, unlockedClassEffects, untouched by this), so there's no known
+    // real double-grant case that could be silently hidden here the way the earlier attempt broke.
+    const withText = item.effects
+      .filter(e => e.text)
+      .filter((e, i, arr) => arr.findIndex(x => x.text === e.text) === i);
     if (withText.length) {
       const nodes = [];
       withText.forEach((e, i) => {
