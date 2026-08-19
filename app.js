@@ -3688,7 +3688,9 @@ function renderEncyclopediaEvolutions() {
     for (const evo of s.evolutions) evos.push({ evo, spell: s });
   }
   const filtered = q ? evos.filter(({ evo, spell }) => evo.name.toLowerCase().includes(q) || spell.name.toLowerCase().includes(q) || evo.description.join(' ').toLowerCase().includes(q)) : evos;
-  const sorted = [...filtered].sort((a, b) => a.spell.name.localeCompare(b.spell.name) || a.evo.tier - b.evo.tier || a.evo.name.localeCompare(b.evo.name));
+  // Alphabetical by evolution name, matching every other Encyclopedia sub-tab's sort — not grouped
+  // by parent spell, which read as out-of-order against that established convention.
+  const sorted = [...filtered].sort((a, b) => a.evo.name.localeCompare(b.evo.name));
 
   const grid = el('div', { class: 'class-card-grid' });
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
