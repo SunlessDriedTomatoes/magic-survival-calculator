@@ -3674,11 +3674,14 @@ function renderEncyclopediaTab() {
 
 // Shared dark-card shell (see .class-card CSS) — every Encyclopedia category uses this, not just
 // Classes, so the whole tab reads as one consistent design rather than mixing two card styles.
-function darkCard({ icon, name, subtitle, lines }) {
+// tierBadge is the small teal line real Evolution screens show ("Attribute Unlock Level: N") —
+// distinct from subtitle (a plain muted line, e.g. the parent Spell/Fusion name).
+function darkCard({ icon, name, subtitle, tierBadge, lines }) {
   return el('div', { class: 'class-card' }, [
     icon || null,
     el('div', { class: 'class-card-name' }, name),
     subtitle ? el('div', { class: 'class-card-subtitle' }, subtitle) : null,
+    tierBadge ? el('div', { class: 'class-card-tier' }, tierBadge) : null,
     el('div', { class: 'class-card-divider' }),
     el('div', { class: 'class-card-lines' }, lines),
   ]);
@@ -3690,6 +3693,46 @@ function darkCard({ icon, name, subtitle, lines }) {
 function darkCardLine(nodesOrNode) {
   return el('div', { class: 'class-card-line' }, [].concat(nodesOrNode));
 }
+
+// Real Fusion/Evolution Encyclopedia screens use a consistent, semantic whole-line color scheme —
+// confirmed across dozens of real screenshots the user shared: cyan for a straightforwardly
+// beneficial change (more Damage/Size/Speed/count), salmon/red for a straightforward downside (less
+// Damage/Size/count, or more Cooldown, or less Duration), magenta for the word "converted". This is
+// genuinely semantic (unlike the Class screen's own per-line palette, checked earlier and found NOT
+// to track meaning consistently), so it's applied here — but kept as its own small Encyclopedia-only
+// classifier, separate from the calculator's own shared coloring pipeline (effectStatColorClass/
+// classifyEffect), since this is cosmetic "is this a buff or a downside" flavor color, not the
+// calculator's own damage-bucket classification — conflating the two would misrepresent which
+// bucket an effect actually contributes to. Reuses existing color tokens (stat-amd cyan, --crit
+// salmon, stat-amp magenta) rather than inventing new ones.
+function encyclopediaLineClass(resolvedText) {
+  if (/\bconverted\b/i.test(resolvedText)) return 'enc-convert';
+  const m = resolvedText.match(/^(Increase|Decrease)\b/i);
+  if (!m) return null;
+  const dir = m[1].toLowerCase();
+  // Only Cooldown has inverted polarity (shorter is better) — Duration behaves like every other
+  // stat here (longer/more is better, e.g. a persistent effect lasting longer deals more total
+  // damage), so it must NOT be grouped with Cooldown despite both being "time" stats.
+  const isCooldown = /\bCooldown\b/i.test(resolvedText);
+  const isDownside = isCooldown ? dir === 'increase' : dir === 'decrease';
+  return isDownside ? 'enc-debuff' : 'enc-buff';
+}
+// Classified lines render as one flat-colored line (matching the real screen's whole-line
+// convention) instead of the calculator's own per-keyword coloring; unclassified lines (plain
+// flavor sentences) fall back to the existing describeLineNode keyword highlighter.
+function encLineNode(text, effects) {
+  const resolved = resolveDisplayText(text) || '';
+  const cls = encyclopediaLineClass(resolved);
+  if (cls) return darkCardLine(el('span', { class: cls }, resolved));
+  return darkCardLine(describeLineNode(text, effects));
+}
+
+// Shield and Cloaking are the two spells whose "damage" figure isn't a real direct-damage stat —
+// see the comment near FUSIONS/PHOTON_EXPLOSION_FUSION above (fusionPrimarySpellId's neighborhood)
+// for the full story. The real in-game Encyclopedia doesn't show a Damage row on either spell's own
+// base card at all — surfaced on their Evolutions cards instead, since that's where it actually
+// starts to matter (Photon Explosion/Teleport multiply against it).
+const NO_DIRECT_DAMAGE_SPELLS = new Set(['Shield', 'Cloaking']);
 
 function renderEncyclopediaSpells() {
   const wrap = el('div', {});
@@ -3705,13 +3748,21 @@ function renderEncyclopediaSpells() {
   for (const s of sorted) {
     const lines = [darkCardLine(highlightStatKeywords(resolveDisplayText(s.description) || ''))];
     if (s.base) {
-      const statNodes = Object.entries(s.base)
-        .filter(([k]) => k !== 'name' && k !== 'note')
-        .map(([k, v]) => el('div', { class: 'spell-stat' }, [document.createTextNode(labelize(k) + ' '), el('span', { class: 'num' }, String(v))]));
-      if (statNodes.length) lines.push(el('div', { class: 'spell-stats' }, statNodes));
-      // Armageddon/Magic Circle (and several other spells' individual fields) never had their real
-      // base stats extracted — s.base.note carries a placeholder saying so. Surfacing it directly
-      // here rather than silently omitting the row, per the missing-data conversation.
+      // Real Spell Encyclopedia screens show a clean label-left/value-right stat list with the
+      // value in gold — matches every spell base-stat screenshot the user shared (e.g. "Damage
+      // ........ 15"). Armageddon/Magic Circle only ever show a subset of these rows (whichever
+      // fields are real for that spell — see gamedata.json), never a placeholder for the rest.
+      // Shield/Cloaking deal no direct damage themselves (their own base screen shows no such stat
+      // at all) — their damage figure only matters once a fusion is built on top (Photon Explosion,
+      // Teleport), so it's surfaced on their own Evolutions cards instead, not here.
+      const skipKeys = new Set(['name', 'note', ...(NO_DIRECT_DAMAGE_SPELLS.has(s.name) ? ['damage'] : [])]);
+      const statRows = Object.entries(s.base)
+        .filter(([k]) => !skipKeys.has(k))
+        .map(([k, v]) => el('div', { class: 'class-card-statrow' }, [
+          el('span', { class: 'class-card-statlabel' }, labelize(k)),
+          el('span', { class: 'class-card-statvalue' }, String(v)),
+        ]));
+      if (statRows.length) lines.push(el('div', { class: 'class-card-statlist' }, statRows));
       if (s.base.note) lines.push(el('div', { class: 'note' }, s.base.note));
     }
     grid.appendChild(darkCard({ icon: iconImg('spell:' + s.id, 'class-card-icon'), name: s.name, lines }));
@@ -3740,8 +3791,21 @@ function renderEncyclopediaEvolutions() {
   for (const { evo, spell } of sorted) {
     const unconfirmed = HIGH_OUTPUT_EVOLUTION && evo.id === HIGH_OUTPUT_EVOLUTION.id;
     const lines = descriptionLinesWithUnconfirmedMarker(evo.description, evo.effects, unconfirmed);
+    // See NO_DIRECT_DAMAGE_SPELLS above — Shield/Cloaking's real base Damage figure is shown here,
+    // on their own evolutions, rather than on the (damage-less) base Spell card.
+    if (NO_DIRECT_DAMAGE_SPELLS.has(spell.name) && spell.base && spell.base.damage != null) {
+      lines.push(el('div', { class: 'class-card-statlist' }, [
+        el('div', { class: 'class-card-statrow' }, [
+          el('span', { class: 'class-card-statlabel' }, spell.name + ' Base Damage'),
+          el('span', { class: 'class-card-statvalue' }, String(spell.base.damage)),
+        ]),
+      ]));
+    }
     if (unconfirmed) lines.push(unconfirmedFootnote());
-    grid.appendChild(darkCard({ icon: iconImg('evolution:' + evo.id, 'class-card-icon'), name: evo.name, subtitle: spell.name + ' — Tier ' + evo.tier, lines }));
+    grid.appendChild(darkCard({
+      icon: iconImg('evolution:' + evo.id, 'class-card-icon'), name: evo.name, subtitle: spell.name,
+      tierBadge: 'Tier ' + evo.tier + ' Evolution', lines,
+    }));
   }
   wrap.appendChild(grid);
   return wrap;
@@ -3766,8 +3830,10 @@ const CONVERSION_LINE_RE = /proportionally|converted into|based on (its|their) d
 function descriptionLinesWithUnconfirmedMarker(description, effects, isUnconfirmed) {
   let marked = false;
   return description.map(d => {
-    const nodes = [].concat(describeLineNode(d, effects));
-    if (isUnconfirmed && !marked && CONVERSION_LINE_RE.test(resolveDisplayText(d) || '')) {
+    const resolved = resolveDisplayText(d) || '';
+    const cls = encyclopediaLineClass(resolved);
+    const nodes = cls ? [el('span', { class: cls }, resolved)] : [].concat(describeLineNode(d, effects));
+    if (isUnconfirmed && !marked && CONVERSION_LINE_RE.test(resolved)) {
       nodes.push(el('sup', { class: 'unconfirmed-asterisk' }, '*'));
       marked = true;
     }
@@ -3842,11 +3908,16 @@ function renderEncyclopediaClasses() {
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const cls of sorted) {
     const lineNode = (eff) => {
-      // effectNode() may return a single node OR an array of nodes (see its own doc comment) —
-      // darkCardLine's own [].concat normalizes either shape, avoiding the real appendChild(anArray)
-      // crash a nested-array child causes in real browsers (the Node.js test harness's DOM stub
-      // didn't catch this the first time, since it never validated argument types).
-      const nodes = [].concat(effectNode(eff));
+      // Same buff/debuff/convert classifier every other Encyclopedia category uses — falls back to
+      // effectNode()'s own per-word coloring for lines it doesn't recognize (e.g. "Magic Circle
+      // Lv +1" grants, which aren't a stat change at all). effectNode() may return a single node OR
+      // an array of nodes (see its own doc comment) — darkCardLine's own [].concat normalizes
+      // either shape, avoiding the real appendChild(anArray) crash a nested-array child causes in
+      // real browsers (the Node.js test harness's DOM stub didn't catch this the first time, since
+      // it never validated argument types).
+      const resolved = resolveDisplayText(eff.text) || '';
+      const cls = encyclopediaLineClass(resolved);
+      const nodes = cls ? [el('span', { class: cls }, resolved)] : [].concat(effectNode(eff));
       if (isAllClassesEffect(eff)) nodes.push(el('span', { class: 'allclasses-badge' }, 'ALL CLASSES'));
       return darkCardLine(nodes);
     };
@@ -3881,7 +3952,7 @@ function renderEncyclopediaTestSubjects() {
   const grid = el('div', { class: 'class-card-grid' });
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const ts of sorted) {
-    const lines = ts.description.map(d => darkCardLine(describeLineNode(d, ts.effects)));
+    const lines = ts.description.map(d => encLineNode(d, ts.effects));
     grid.appendChild(darkCard({ icon: iconImg('testSubject:' + ts.id, 'class-card-icon'), name: ts.name, lines }));
   }
   wrap.appendChild(grid);

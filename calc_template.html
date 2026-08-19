@@ -493,12 +493,30 @@
   .class-card {
     background: #0a0a0a; border: 1px solid #262626; border-radius: 10px; padding: 22px 20px; text-align: center;
   }
-  .class-card-icon { width: 48px; height: 48px; margin: 0 auto 10px; opacity: 0.92; }
+  /* Sized up from an earlier 48px pass — real Spell/Evolution/Fusion Encyclopedia screenshots the
+     user shared show the icon as the dominant element of the card, not a small corner glyph. */
+  .class-card-icon { width: 72px; height: 72px; margin: 0 auto 10px; opacity: 0.92; }
   .class-card-name { font-family: var(--font-display); font-size: 22px; font-weight: 600; color: #f2efe6; margin-bottom: 4px; }
   .class-card-subtitle { font-family: var(--font-ui); font-size: 12px; color: #9a958a; margin-bottom: 4px; }
+  /* Matches the real Evolution screen's own "Attribute Unlock Level: N" line — teal-green, reusing
+     --buff rather than the cyan already claimed by .enc-buff below, so the two stay visually distinct. */
+  .class-card-tier { font-family: var(--font-ui); font-size: 11.5px; font-weight: 600; color: var(--buff); margin-bottom: 4px; }
   .class-card-divider { width: 120px; height: 1px; background: var(--accent); opacity: 0.6; margin: 12px auto 16px; }
   .class-card-lines { display: flex; flex-direction: column; gap: 12px; }
   .class-card-line { font-size: 13px; line-height: 1.5; color: #d8d4c8; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; }
+  /* Real Fusion/Evolution/Class screens color a whole classified line by whether it's a beneficial
+     change or a downside, not by stat name — cyan/salmon/magenta reuse the calculator's own existing
+     tokens (stat-amd/--crit/stat-amp) rather than new ones. See encyclopediaLineClass() in app.js. */
+  .enc-buff { color: var(--stat-amd); }
+  .enc-debuff { color: var(--crit); }
+  .enc-convert { color: var(--stat-amp); }
+  /* Real Spell screens show a clean label-left/gold-value-right stat list (Damage/Size/Cooldown/
+     etc.) below the flavor text — full width within the card, not the centered flex-wrap chips
+     used elsewhere, so it reads as a proper table the way the real screen does. */
+  .class-card-statlist { width: 100%; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+  .class-card-statrow { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+  .class-card-statlabel { color: #b8b4a8; }
+  .class-card-statvalue { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
   /* Spell base-stat rows and caveat notes get reused inside these dark cards too — both otherwise
      rely on theme CSS variables (var(--text-dim)/var(--text-faint)/var(--border)) that would
      resolve to illegible low-contrast colors against this always-black background in light theme,

@@ -880,7 +880,7 @@
         "name": "Shield",
         "damage": 30,
         "number": 1,
-        "note": "confirmed by user directly; blocks damage once per cast, unrelated to its own damage stat"
+        "note": "Blocks damage once per cast — this value is unrelated to its own damage stat."
       },
       "maxLevel": 5,
       "traitUnlockLevels": [
@@ -1619,8 +1619,7 @@
       "description": "[Pass through] all objects for a moment, and increase [Movement Speed].",
       "base": {
         "name": "Cloaking",
-        "damage": 500,
-        "note": "confirmed by user directly"
+        "damage": 500
       },
       "maxLevel": 5,
       "traitUnlockLevels": [
