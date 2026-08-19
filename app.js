@@ -1433,13 +1433,27 @@ function getUltimateInfo(fusion) {
 // directly rather than inferred — used whenever it resolves to a real Class, falling back to the
 // old "any Class linked to the primary spell" check only for the handful of fusions where it
 // doesn't resolve (Shield/Cloaking/Armageddon/Magic Circle-rooted fusions have no Class linked to
-// their primary spell at all, e.g. Teleport -> Hallucination, rooted in Cloaking — those unlock
-// unconditionally rather than being permanently and incorrectly stuck "locked").
+// their primary spell at all).
+//
+// Cloaking-rooted Teleport is the one real, curated ultimate (Hallucination) among those — a real
+// in-game screenshot confirms it requires "Jack o' Lantern Test Subject" specifically, no Class at
+// all (Jack o' Lantern has no School-class counterpart). Its own ultimateRequiredClassId (25) is a
+// stale pre-remap id: every Test Subject's final id is exactly its School-class counterpart's id
+// + 40 (confirmed dataset-wide, ids 41-64 mirror School ids 1-24 exactly) — Jack o' Lantern (final
+// id 65) has no counterpart to inherit a remapped id from, so its raw id (25) was left as-is on
+// this field. Resolving it via the same +40 offset correctly requires that one specific Test
+// Subject; anything else with no linked Class still unlocks unconditionally, same as before.
 function isUltimateUnlocked(fusion) {
   const primarySpellId = fusionPrimarySpellId(fusion);
   const primarySpell = primarySpellId != null ? GAMEDATA.spells[primarySpellId] : null;
   const primaryHasNoLinkedClass = primarySpell && !GAMEDATA.classes.school.some(c => c.linkedSpellId === primarySpellId);
-  if (primaryHasNoLinkedClass) return true;
+  if (primaryHasNoLinkedClass) {
+    if (fusion.ultimateRequiredClassId != null) {
+      const requiredTestSubject = GAMEDATA.classes.testSubject.find(t => t.id === fusion.ultimateRequiredClassId + 40);
+      if (requiredTestSubject) return state.testSubjectId === requiredTestSubject.id;
+    }
+    return true;
+  }
   if (state.classId == null || state.testSubjectId == null) return false;
   const cls = GAMEDATA.classes.school.find(c => c.id === state.classId);
   const ts = GAMEDATA.classes.testSubject.find(c => c.id === state.testSubjectId);
@@ -1464,7 +1478,11 @@ function testSubjectGatesAnyUltimate(ts) {
     const ult = getUltimateInfo(f);
     if (!ult || f.ultimateRequiredClassId == null) return false;
     const reqClass = GAMEDATA.classes.school.find(c => c.id === f.ultimateRequiredClassId);
-    return reqClass && reqClass.name === ts.name;
+    if (reqClass) return reqClass.name === ts.name;
+    // No matching School class (e.g. Teleport -> Hallucination requiring Jack o' Lantern
+    // specifically) — resolve via the same +40 Test-Subject-id offset isUltimateUnlocked uses.
+    const reqTestSubject = GAMEDATA.classes.testSubject.find(t => t.id === f.ultimateRequiredClassId + 40);
+    return reqTestSubject && reqTestSubject.id === ts.id;
   });
 }
 

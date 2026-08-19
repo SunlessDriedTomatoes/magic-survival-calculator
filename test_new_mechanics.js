@@ -736,15 +736,26 @@ check('Mirage: durationSpellPct = 170 (90 own Cloaking upgrades + 80 Mirage, alr
 check('Mirage: spaceWarpDurationMult stays 1 (mutual exclusion — Mirage never affects Space Warp\'s own mult)', r.spaceWarpDurationMult, 1);
 
 // --- Hallucination (Teleport's Ultimate): included at user's request, x1.25, NOT independently
-// confirmed (see ultimates.json note) — also verifies the isUltimateUnlocked fix, since Cloaking has
-// no linked Class/Test Subject anywhere in the data (unlike every attack spell), so the normal
-// class-gate can never be satisfied for it and must unlock unconditionally instead. ---
+// confirmed (see ultimates.json note). Cloaking has no linked School Class at all (unlike every
+// attack spell), but real in-game evidence (a screenshot of the ultimate's own unlock card) shows
+// it still requires a specific Test Subject — "Jack o' Lantern", which has no School-class
+// counterpart at all. Regression-guards the isUltimateUnlocked fix that resolves this via the
+// confirmed +40 Test-Subject-id offset, replacing the old "always unlocked" fallback. ---
 reset();
 state.fusionIds = [40]; // Teleport
 own('Harmony');
 setSpellLevel(cloakingSpell, spellState(11), 5);
 spellState(11).evolutions.add(453); // Space Warp
 state.selectedSpellId = 11;
+const teleportFusion = GAMEDATA.fusions.find(f => f.name === 'Teleport');
+const jackOLantern = GAMEDATA.classes.testSubject.find(t => t.name.startsWith('Jack'));
+state.testSubjectId = null;
+check('Hallucination stays locked with no Test Subject selected', isUltimateUnlocked(teleportFusion), false);
+state.testSubjectId = GAMEDATA.classes.testSubject.find(t => t.name === 'Wizard').id;
+check('Hallucination stays locked with the wrong Test Subject (Wizard)', isUltimateUnlocked(teleportFusion), false);
+state.testSubjectId = jackOLantern.id;
+check('Hallucination unlocks with Jack o\' Lantern Test Subject, no Class needed', isUltimateUnlocked(teleportFusion), true);
+check("testSubjectGatesAnyUltimate: Jack o' Lantern gates Hallucination", testSubjectGatesAnyUltimate(jackOLantern), true);
 r = compute();
 state.ultimatesOn[40] = true;
 r = compute();

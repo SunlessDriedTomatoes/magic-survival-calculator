@@ -2072,7 +2072,7 @@
       "description": "Remove all enemies.",
       "base": {
         "name": "Armageddon",
-        "note": "not provided by user - unknown base stats"
+        "cooldown": 100
       },
       "maxLevel": 5,
       "traitUnlockLevels": [
