@@ -492,6 +492,7 @@
   }
   .class-card {
     background: #0a0a0a; border: 1px solid #262626; border-radius: 10px; padding: 22px 20px; text-align: center;
+    display: flex; flex-direction: column;
   }
   /* Sized up from an earlier 48px pass — real Spell/Evolution/Fusion Encyclopedia screenshots the
      user shared show the icon as the dominant element of the card, not a small corner glyph. */
@@ -524,6 +525,10 @@
   .class-card .spell-stats { justify-content: center; margin: 2px 0 0; }
   .class-card .spell-stat { color: #b8b4a8; }
   .class-card .note { color: #9a958a; border-left-color: #3a3730; text-align: left; }
+  /* The unconfirmed-ratio footnote is a direct child of .class-card (not .class-card-lines) —
+     margin-top:auto pins it to the bottom of the card via the flex-column layout above, so it
+     lands in the same spot regardless of how much content sits above it on a given card. */
+  .class-card > .note { margin-top: auto; padding-top: 14px; }
   /* Marks the boundary before a class's own "(All Classes)" bonus (always the last line, see
      renderEncyclopediaClasses) — a distinct yellow, not var(--accent)'s gold, so it doesn't get
      visually confused with the divider under the class name above. */

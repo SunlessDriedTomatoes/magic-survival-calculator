@@ -3675,8 +3675,11 @@ function renderEncyclopediaTab() {
 // Shared dark-card shell (see .class-card CSS) — every Encyclopedia category uses this, not just
 // Classes, so the whole tab reads as one consistent design rather than mixing two card styles.
 // tierBadge is the small teal line real Evolution screens show ("Attribute Unlock Level: N") —
-// distinct from subtitle (a plain muted line, e.g. the parent Spell/Fusion name).
-function darkCard({ icon, name, subtitle, tierBadge, lines }) {
+// distinct from subtitle (a plain muted line, e.g. the parent Spell/Fusion name). footnote (e.g.
+// the "* Unconfirmed." note) is pinned to the card's own bottom-left via .class-card's flex-column
+// layout + margin-top:auto — a separate direct child of .class-card, not part of .class-card-lines,
+// so it lands at the bottom of the card itself rather than just after the last content line.
+function darkCard({ icon, name, subtitle, tierBadge, lines, footnote }) {
   return el('div', { class: 'class-card' }, [
     icon || null,
     el('div', { class: 'class-card-name' }, name),
@@ -3684,6 +3687,7 @@ function darkCard({ icon, name, subtitle, tierBadge, lines }) {
     tierBadge ? el('div', { class: 'class-card-tier' }, tierBadge) : null,
     el('div', { class: 'class-card-divider' }),
     el('div', { class: 'class-card-lines' }, lines),
+    footnote || null,
   ]);
 }
 // nodesOrNode may be a single node/string or an array (effectNode/describeLineNode/
@@ -3801,10 +3805,10 @@ function renderEncyclopediaEvolutions() {
         ]),
       ]));
     }
-    if (unconfirmed) lines.push(unconfirmedFootnote());
     grid.appendChild(darkCard({
       icon: iconImg('evolution:' + evo.id, 'class-card-icon'), name: evo.name, subtitle: spell.name,
       tierBadge: 'Tier ' + evo.tier + ' Evolution', lines,
+      footnote: unconfirmed ? unconfirmedFootnote() : null,
     }));
   }
   wrap.appendChild(grid);
@@ -3859,8 +3863,10 @@ function renderEncyclopediaFusions() {
   for (const f of sorted) {
     const unconfirmedRatio = UNCONFIRMED_CONVERSION_FUSION_NOTES.get(f);
     const lines = descriptionLinesWithUnconfirmedMarker(f.description, f.effects, !!unconfirmedRatio);
-    if (unconfirmedRatio) lines.push(unconfirmedFootnote());
-    grid.appendChild(darkCard({ icon: iconImg('fusion:' + f.id, 'class-card-icon'), name: f.name, lines }));
+    grid.appendChild(darkCard({
+      icon: iconImg('fusion:' + f.id, 'class-card-icon'), name: f.name, lines,
+      footnote: unconfirmedRatio ? unconfirmedFootnote() : null,
+    }));
   }
   wrap.appendChild(grid);
   return wrap;
