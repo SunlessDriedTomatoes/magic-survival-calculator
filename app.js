@@ -3832,16 +3832,19 @@ function descriptionLinesWithUnconfirmedMarker(description, effects, isUnconfirm
   return description.map(d => {
     const resolved = resolveDisplayText(d) || '';
     const cls = encyclopediaLineClass(resolved);
-    const nodes = cls ? [el('span', { class: cls }, resolved)] : [].concat(describeLineNode(d, effects));
+    const baseNodes = cls ? [el('span', { class: cls }, resolved)] : [].concat(describeLineNode(d, effects));
     if (isUnconfirmed && !marked && CONVERSION_LINE_RE.test(resolved)) {
-      nodes.push(el('sup', { class: 'unconfirmed-asterisk' }, '*'));
       marked = true;
+      // .class-card-line is display:flex — a bare <sup> pushed on as its own sibling item can wrap
+      // onto its own line, separate from the text it's marking. Wrapping text+asterisk together in
+      // one inline span keeps them as a single flex item, so the asterisk always stays glued to it.
+      return el('div', { class: 'class-card-line' }, [el('span', {}, [...baseNodes, el('sup', { class: 'unconfirmed-asterisk' }, '*')])]);
     }
-    return el('div', { class: 'class-card-line' }, nodes);
+    return el('div', { class: 'class-card-line' }, baseNodes);
   });
 }
 function unconfirmedFootnote() {
-  return el('div', { class: 'note' }, [el('sup', { class: 'unconfirmed-asterisk' }, '*'), document.createTextNode(' Unconfirmed — see Mechanics tab.')]);
+  return el('div', { class: 'note' }, [el('sup', { class: 'unconfirmed-asterisk' }, '*'), document.createTextNode(' Unconfirmed.')]);
 }
 
 function renderEncyclopediaFusions() {
