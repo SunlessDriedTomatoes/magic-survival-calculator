@@ -3772,10 +3772,13 @@ function renderEncyclopediaClasses() {
   for (const cls of sorted) {
     const lines = cls.effects.map(eff => {
       const allClasses = isAllClassesEffect(eff);
-      return el('div', { class: 'class-card-line' }, [
-        effectNode(eff),
-        allClasses ? el('span', { class: 'allclasses-badge' }, 'ALL CLASSES') : null,
-      ]);
+      // effectNode() may return a single node OR an array of nodes (see its own doc comment) —
+      // must spread via [].concat, not nest it as one array-typed list item, or el()'s own child
+      // loop ends up calling appendChild(anArray), which real browsers reject (TypeError: not of
+      // type 'Node') even though the Node.js test harness's DOM stub silently accepted it.
+      const nodes = [].concat(effectNode(eff));
+      if (allClasses) nodes.push(el('span', { class: 'allclasses-badge' }, 'ALL CLASSES'));
+      return el('div', { class: 'class-card-line' }, nodes);
     });
     grid.appendChild(el('div', { class: 'class-card' }, [
       iconImg('class:' + cls.id, 'class-card-icon'),
@@ -3855,6 +3858,20 @@ function renderMechanicsTab() {
       el('div', {}, [el('span', { class: 'stat-xmult' }, 'DEM, Class, Additional Damage, Fusion/Ultimate'), document.createTextNode(' — each its own separate multiplicative factor, not folded into MDMG.')]),
     ]),
     mechExample('Base 100, ATK% +50 → ATK = 150, everything else at 1 → Non-Crit = 100 × 150 × 1 × 1 × 1 × 1 × 1 × 1 = 15,000.'),
+    el('h4', { class: 'mech-subhead' }, 'Which bucket does an effect fall into?'),
+    el('div', { class: 'note', style: 'margin-top:0;' }, 'Based on the effect\'s own wording — cited against classifyEffect() in this calculator\'s own code, not approximated.'),
+    el('div', { class: 'mech-bucket-list' }, [
+      [' "Increase ATK by X%"', 'stat-atk', 'ATK'],
+      [' "Amplify ATK by X%"', 'stat-amp', 'AMP'],
+      [' "Increase/Decrease All Magic Damage by X%", or "Increase/Decrease [Spell] Damage by X%" (percent-phrased, targeting "All Magic" or the spell you\'re viewing) — includes Combination Magic Damage bonuses (Archmage, Advanced Magic, Dragontongue, Dominus)', 'stat-amd', 'MDMG (shared additive pool)'],
+      [' "Increase/Decrease [Spell] Damage by NX" (a literal X-multiplier), or "[Something] Damage Multiplier" phrasing (Deus Ex Machina, Telekinetic Sword, Arbiter), or a "[stat] is converted into Damage" conversion (Space Warp, Furnace, Gate, and the rest of the E16 family below) — each its own standalone factor, folded into Fusion/Ultimate Multiplier', 'stat-xmult', 'Fusion/Ultimate Multiplier'],
+      [' Deus Ex Machina\'s own formula specifically (Overmind-scaled, not generic text-matched)', 'stat-xmult', 'DEM'],
+      [' The active School Class\'s own "+X% [Spell] Damage every N character levels" line', 'stat-xmult', 'Class'],
+      [' HP-gated / time-gated / character-level-gated "additional damage" sources (Robot, Excalibur, Guillotine, Sniper, Brand) — multiplicative with each other', 'stat-xmult', 'Additional Damage'],
+    ].map(([desc, cls, bucket]) => el('div', { class: 'mech-bucket-row' }, [
+      el('span', { class: cls }, bucket),
+      document.createTextNode(' ←' + desc + '.'),
+    ]))),
   ]));
 
   wrap.appendChild(mechSection('Cooldown Reduction', [
