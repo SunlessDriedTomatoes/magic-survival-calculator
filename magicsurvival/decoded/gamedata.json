@@ -2886,7 +2886,9 @@
       "description": "{Amplify} [ATK] for a certain duration.",
       "base": {
         "name": "Magic Circle",
-        "note": "no direct damage stat (utility - amplifies attack during duration)"
+        "amplificationEffect": 25,
+        "duration": 5,
+        "cooldown": 20
       },
       "maxLevel": 5,
       "traitUnlockLevels": [

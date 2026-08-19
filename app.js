@@ -2953,7 +2953,7 @@ function renderMainPane() {
 }
 
 function labelize(k) {
-  const map = { damage: 'Damage', size: 'Size', number: 'Number', cooldown: 'Cooldown', explosionRange: 'Explosion Range', damageInterval: 'Dmg Interval', duration: 'Duration', rotationSpeed: 'Rotation Speed' };
+  const map = { damage: 'Damage', size: 'Size', number: 'Number', cooldown: 'Cooldown', explosionRange: 'Explosion Range', damageInterval: 'Dmg Interval', duration: 'Duration', rotationSpeed: 'Rotation Speed', amplificationEffect: 'Amplification Effect' };
   return map[k] || k;
 }
 
