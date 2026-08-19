@@ -3629,6 +3629,25 @@ function renderEncyclopediaTab() {
   return wrap;
 }
 
+// Shared dark-card shell (see .class-card CSS) — every Encyclopedia category uses this, not just
+// Classes, so the whole tab reads as one consistent design rather than mixing two card styles.
+function darkCard({ icon, name, subtitle, lines }) {
+  return el('div', { class: 'class-card' }, [
+    icon || null,
+    el('div', { class: 'class-card-name' }, name),
+    subtitle ? el('div', { class: 'class-card-subtitle' }, subtitle) : null,
+    el('div', { class: 'class-card-divider' }),
+    el('div', { class: 'class-card-lines' }, lines),
+  ]);
+}
+// nodesOrNode may be a single node/string or an array (effectNode/describeLineNode/
+// highlightStatKeywords all share that "may return an array" contract) — [].concat normalizes
+// either shape into a flat array before handing it to el(), matching the pattern established
+// while fixing the Classes tab's real appendChild(anArray) crash (see the comment further below).
+function darkCardLine(nodesOrNode) {
+  return el('div', { class: 'class-card-line' }, [].concat(nodesOrNode));
+}
+
 function renderEncyclopediaSpells() {
   const wrap = el('div', {});
   wrap.appendChild(makeSearchBox('EncySpells', 'spells'));
@@ -3638,24 +3657,21 @@ function renderEncyclopediaSpells() {
   const filtered = q ? spells.filter(s => s.name.toLowerCase().includes(q) || (resolveDisplayText(s.description) || '').toLowerCase().includes(q)) : spells;
   const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
 
-  const grid = el('div', { class: 'card-grid' });
+  const grid = el('div', { class: 'class-card-grid' });
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const s of sorted) {
-    const statsRow = el('div', { class: 'spell-stats' });
+    const lines = [darkCardLine(highlightStatKeywords(resolveDisplayText(s.description) || ''))];
     if (s.base) {
-      for (const [k, v] of Object.entries(s.base)) {
-        if (k === 'name' || k === 'note') continue;
-        statsRow.appendChild(el('div', { class: 'spell-stat' }, [document.createTextNode(labelize(k) + ' '), el('span', { class: 'num' }, String(v))]));
-      }
+      const statNodes = Object.entries(s.base)
+        .filter(([k]) => k !== 'name' && k !== 'note')
+        .map(([k, v]) => el('div', { class: 'spell-stat' }, [document.createTextNode(labelize(k) + ' '), el('span', { class: 'num' }, String(v))]));
+      if (statNodes.length) lines.push(el('div', { class: 'spell-stats' }, statNodes));
+      // Armageddon/Magic Circle (and several other spells' individual fields) never had their real
+      // base stats extracted — s.base.note carries a placeholder saying so. Surfacing it directly
+      // here rather than silently omitting the row, per the missing-data conversation.
+      if (s.base.note) lines.push(el('div', { class: 'note' }, s.base.note));
     }
-    grid.appendChild(el('div', { class: 'item-card' }, [
-      iconImg('spell:' + s.id, 'ic-icon'),
-      el('div', { class: 'ic-body' }, [
-        el('div', { class: 'ic-name' }, s.name),
-        el('div', { class: 'ic-desc' }, highlightStatKeywords(resolveDisplayText(s.description) || '')),
-        statsRow,
-      ]),
-    ]));
+    grid.appendChild(darkCard({ icon: iconImg('spell:' + s.id, 'class-card-icon'), name: s.name, lines }));
   }
   wrap.appendChild(grid);
   return wrap;
@@ -3674,18 +3690,13 @@ function renderEncyclopediaEvolutions() {
   const filtered = q ? evos.filter(({ evo, spell }) => evo.name.toLowerCase().includes(q) || spell.name.toLowerCase().includes(q) || evo.description.join(' ').toLowerCase().includes(q)) : evos;
   const sorted = [...filtered].sort((a, b) => a.spell.name.localeCompare(b.spell.name) || a.evo.tier - b.evo.tier || a.evo.name.localeCompare(b.evo.name));
 
-  const grid = el('div', { class: 'card-grid' });
+  const grid = el('div', { class: 'class-card-grid' });
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const { evo, spell } of sorted) {
     const unconfirmed = HIGH_OUTPUT_EVOLUTION && evo.id === HIGH_OUTPUT_EVOLUTION.id;
-    grid.appendChild(el('div', { class: 'item-card' }, [
-      iconImg('evolution:' + evo.id, 'ic-icon'),
-      el('div', { class: 'ic-body' }, [
-        el('div', { class: 'ic-name' }, evo.name + ' (' + spell.name + ', Tier ' + evo.tier + ')'),
-        el('div', { class: 'ic-desc' }, evo.description.map(d => el('div', {}, describeLineNode(d, evo.effects)))),
-        unconfirmed ? el('div', { class: 'note' }, 'This calculator treats this Size→Damage conversion as 1:1, its own separate multiplier — unconfirmed (see Mechanics tab).') : null,
-      ]),
-    ]));
+    const lines = evo.description.map(d => darkCardLine(describeLineNode(d, evo.effects)));
+    if (unconfirmed) lines.push(el('div', { class: 'note' }, 'This calculator treats this Size→Damage conversion as 1:1, its own separate multiplier — unconfirmed (see Mechanics tab).'));
+    grid.appendChild(darkCard({ icon: iconImg('evolution:' + evo.id, 'class-card-icon'), name: evo.name, subtitle: spell.name + ' — Tier ' + evo.tier, lines }));
   }
   wrap.appendChild(grid);
   return wrap;
@@ -3709,18 +3720,13 @@ function renderEncyclopediaFusions() {
   const filtered = q ? GAMEDATA.fusions.filter(f => f.name.toLowerCase().includes(q) || f.description.join(' ').toLowerCase().includes(q)) : GAMEDATA.fusions;
   const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
 
-  const grid = el('div', { class: 'card-grid' });
+  const grid = el('div', { class: 'class-card-grid' });
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const f of sorted) {
     const unconfirmedRatio = UNCONFIRMED_CONVERSION_FUSION_NOTES.get(f);
-    grid.appendChild(el('div', { class: 'item-card' }, [
-      iconImg('fusion:' + f.id, 'ic-icon'),
-      el('div', { class: 'ic-body' }, [
-        el('div', { class: 'ic-name' }, f.name),
-        el('div', { class: 'ic-desc' }, descriptionNodes(f.description, f.effects)),
-        unconfirmedRatio ? el('div', { class: 'note' }, 'This calculator treats this conversion as ' + unconfirmedRatio + ', its own separate multiplier — unconfirmed (see Mechanics tab).') : null,
-      ]),
-    ]));
+    const lines = f.description.map(d => darkCardLine(describeLineNode(d, f.effects)));
+    if (unconfirmedRatio) lines.push(el('div', { class: 'note' }, 'This calculator treats this conversion as ' + unconfirmedRatio + ', its own separate multiplier — unconfirmed (see Mechanics tab).'));
+    grid.appendChild(darkCard({ icon: iconImg('fusion:' + f.id, 'class-card-icon'), name: f.name, lines }));
   }
   wrap.appendChild(grid);
   return wrap;
@@ -3734,32 +3740,32 @@ function renderEncyclopediaUltimates() {
   const filtered = q ? rows.filter(({ f, ult }) => ult.ultimateName.toLowerCase().includes(q) || f.name.toLowerCase().includes(q)) : rows;
   const sorted = [...filtered].sort((a, b) => a.ult.ultimateName.localeCompare(b.ult.ultimateName));
 
-  const grid = el('div', { class: 'card-grid' });
+  const grid = el('div', { class: 'class-card-grid' });
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const { f, ult } of sorted) {
-    const body = [
-      el('div', { class: 'ic-name' }, ult.ultimateName + ' (' + f.name + ')'),
-      f.ultimateDescription ? el('div', { class: 'ic-desc' }, highlightStatKeywords(resolveDisplayText(f.ultimateDescription))) : null,
-      ult.multiplier ? el('div', { class: 'note' }, '×' + ult.multiplier + ' damage multiplier' + (ult.verified === true ? ' ✓' : ' (approx.)')) : null,
-      ult.damageScalingText ? el('div', { class: 'note' }, ult.damageScalingText) : null,
-    ];
-    grid.appendChild(el('div', { class: 'item-card' }, [
-      iconImg('ultimate:' + f.id, 'ic-icon') || iconImg('fusion:' + f.id, 'ic-icon'),
-      el('div', { class: 'ic-body' }, body),
-    ]));
+    const lines = [];
+    if (f.ultimateDescription) lines.push(darkCardLine(highlightStatKeywords(resolveDisplayText(f.ultimateDescription))));
+    if (ult.multiplier) lines.push(el('div', { class: 'note' }, '×' + ult.multiplier + ' damage multiplier' + (ult.verified === true ? ' ✓' : ' (approx.)')));
+    if (ult.damageScalingText) lines.push(el('div', { class: 'note' }, ult.damageScalingText));
+    grid.appendChild(darkCard({
+      icon: iconImg('ultimate:' + f.id, 'class-card-icon') || iconImg('fusion:' + f.id, 'class-card-icon'),
+      name: ult.ultimateName, subtitle: f.name, lines,
+    }));
   }
   wrap.appendChild(grid);
   return wrap;
 }
 
-// Class cards get a distinct dark, decorative visual shell (see .class-card/.class-card-* CSS)
-// modeled on the real in-game class detail screen the user shared reference screenshots of —
-// black background, large display-style title, thin divider. Text coloring reuses the calculator's
-// own stat-color pipeline (effectNode/highlightStatKeywords) rather than trying to replicate the
-// real game's own per-line color rotation, which turned out not to track stat type consistently
-// across all 24 real screenshots (checked directly) — the one real, consistent signal in the real
-// game is that any "(All Classes)" line is always shown distinctly, which isAllClassesEffect (see
-// classAllClassesEffect above) already detects, so that gets its own small badge here instead.
+// Every Encyclopedia category shares the same dark, decorative card shell (see darkCard() above
+// and .class-card/.class-card-* CSS) — originally modeled specifically on the real in-game Class
+// detail screen the user shared reference screenshots of (black background, large display-style
+// title, thin divider), then extended to every other category for visual consistency across the
+// whole tab. Class-card text coloring reuses the calculator's own stat-color pipeline (effectNode/
+// highlightStatKeywords) rather than trying to replicate the real game's own per-line color
+// rotation, which turned out not to track stat type consistently across all 24 real screenshots
+// (checked directly) — the one real, consistent signal in the real game is that any "(All Classes)"
+// line is always shown last and distinctly, which isAllClassesEffect (see classAllClassesEffect
+// above) already detects, so that gets its own divider + small badge here instead.
 function renderEncyclopediaClasses() {
   const wrap = el('div', {});
   wrap.appendChild(makeSearchBox('EncyClasses', 'classes'));
@@ -3770,27 +3776,36 @@ function renderEncyclopediaClasses() {
   const grid = el('div', { class: 'class-card-grid' });
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const cls of sorted) {
-    const lines = cls.effects.map(eff => {
-      const allClasses = isAllClassesEffect(eff);
+    const lineNode = (eff) => {
       // effectNode() may return a single node OR an array of nodes (see its own doc comment) —
-      // must spread via [].concat, not nest it as one array-typed list item, or el()'s own child
-      // loop ends up calling appendChild(anArray), which real browsers reject (TypeError: not of
-      // type 'Node') even though the Node.js test harness's DOM stub silently accepted it.
+      // darkCardLine's own [].concat normalizes either shape, avoiding the real appendChild(anArray)
+      // crash a nested-array child causes in real browsers (the Node.js test harness's DOM stub
+      // didn't catch this the first time, since it never validated argument types).
       const nodes = [].concat(effectNode(eff));
-      if (allClasses) nodes.push(el('span', { class: 'allclasses-badge' }, 'ALL CLASSES'));
-      return el('div', { class: 'class-card-line' }, nodes);
-    });
-    grid.appendChild(el('div', { class: 'class-card' }, [
-      iconImg('class:' + cls.id, 'class-card-icon'),
-      el('div', { class: 'class-card-name' }, cls.name),
-      el('div', { class: 'class-card-divider' }),
-      el('div', { class: 'class-card-lines' }, lines),
-    ]));
+      if (isAllClassesEffect(eff)) nodes.push(el('span', { class: 'allclasses-badge' }, 'ALL CLASSES'));
+      return darkCardLine(nodes);
+    };
+    // "(All Classes)" bonuses always render last on the real in-game screen (confirmed across all
+    // 24 classes' own screenshots) — but the raw data's own effects-array order doesn't reliably
+    // match that (Archmage's, for one, lists it first) — so these are explicitly split out and
+    // moved to the end, with a divider marking the boundary, rather than trusting array order.
+    const normalEffects = cls.effects.filter(eff => !isAllClassesEffect(eff));
+    const allClassesEffects = cls.effects.filter(isAllClassesEffect);
+    const lines = normalEffects.map(lineNode);
+    if (allClassesEffects.length) {
+      lines.push(el('div', { class: 'class-card-allclasses-divider' }));
+      for (const eff of allClassesEffects) lines.push(lineNode(eff));
+    }
+    grid.appendChild(darkCard({ icon: iconImg('class:' + cls.id, 'class-card-icon'), name: cls.name, lines }));
   }
   wrap.appendChild(grid);
   return wrap;
 }
 
+// Every one of a Test Subject's own effects is already "(All Classes)"-tagged (confirmed dataset-
+// wide, all 25) — unlike School Classes, there's no normal/universal split to divide, so this
+// skips the Classes tab's divider/badge treatment entirely; a divider before 100% of the content
+// wouldn't convey anything a reader doesn't already know.
 function renderEncyclopediaTestSubjects() {
   const wrap = el('div', {});
   wrap.appendChild(makeSearchBox('EncyTestSubjects', 'test subjects'));
@@ -3798,16 +3813,11 @@ function renderEncyclopediaTestSubjects() {
   const filtered = q ? GAMEDATA.classes.testSubject.filter(t => t.name.toLowerCase().includes(q) || t.description.join(' ').toLowerCase().includes(q)) : GAMEDATA.classes.testSubject;
   const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
 
-  const grid = el('div', { class: 'card-grid' });
+  const grid = el('div', { class: 'class-card-grid' });
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const ts of sorted) {
-    grid.appendChild(el('div', { class: 'item-card' }, [
-      iconImg('testSubject:' + ts.id, 'ic-icon'),
-      el('div', { class: 'ic-body' }, [
-        el('div', { class: 'ic-name' }, ts.name),
-        el('div', { class: 'ic-desc' }, descriptionNodes(ts.description, ts.effects)),
-      ]),
-    ]));
+    const lines = ts.description.map(d => darkCardLine(describeLineNode(d, ts.effects)));
+    grid.appendChild(darkCard({ icon: iconImg('testSubject:' + ts.id, 'class-card-icon'), name: ts.name, lines }));
   }
   wrap.appendChild(grid);
   return wrap;

@@ -482,7 +482,7 @@
   }
   .rarity-tabbar button.active { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
 
-  /* ---------- Encyclopedia: Class cards ---------- */
+  /* ---------- Encyclopedia: dark cards (shared by every category, see darkCard() in app.js) ---------- */
   /* Deliberately theme-independent (always the game's own near-black look, not var(--bg)/var(--text))
      — modeled directly on the real in-game Class detail screen, unlike every other card in the app
      which follows the light/dark toggle. --accent already matches the real screen's gold divider
@@ -494,10 +494,22 @@
     background: #0a0a0a; border: 1px solid #262626; border-radius: 10px; padding: 22px 20px; text-align: center;
   }
   .class-card-icon { width: 48px; height: 48px; margin: 0 auto 10px; opacity: 0.92; }
-  .class-card-name { font-family: var(--font-display); font-size: 22px; font-weight: 600; color: #f2efe6; margin-bottom: 12px; }
-  .class-card-divider { width: 120px; height: 1px; background: var(--accent); opacity: 0.6; margin: 0 auto 16px; }
+  .class-card-name { font-family: var(--font-display); font-size: 22px; font-weight: 600; color: #f2efe6; margin-bottom: 4px; }
+  .class-card-subtitle { font-family: var(--font-ui); font-size: 12px; color: #9a958a; margin-bottom: 4px; }
+  .class-card-divider { width: 120px; height: 1px; background: var(--accent); opacity: 0.6; margin: 12px auto 16px; }
   .class-card-lines { display: flex; flex-direction: column; gap: 12px; }
   .class-card-line { font-size: 13px; line-height: 1.5; color: #d8d4c8; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; }
+  /* Spell base-stat rows and caveat notes get reused inside these dark cards too — both otherwise
+     rely on theme CSS variables (var(--text-dim)/var(--text-faint)/var(--border)) that would
+     resolve to illegible low-contrast colors against this always-black background in light theme,
+     since the card itself doesn't follow the toggle. Fixed, theme-independent colors instead. */
+  .class-card .spell-stats { justify-content: center; margin: 2px 0 0; }
+  .class-card .spell-stat { color: #b8b4a8; }
+  .class-card .note { color: #9a958a; border-left-color: #3a3730; text-align: left; }
+  /* Marks the boundary before a class's own "(All Classes)" bonus (always the last line, see
+     renderEncyclopediaClasses) — a distinct yellow, not var(--accent)'s gold, so it doesn't get
+     visually confused with the divider under the class name above. */
+  .class-card-allclasses-divider { width: 100%; height: 1px; background: #e8d44d; opacity: 0.55; }
   .allclasses-badge {
     font-family: var(--font-ui); font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em;
     color: var(--debuff); border: 1px solid var(--debuff); border-radius: 4px; padding: 1px 5px;
