@@ -552,6 +552,16 @@ const HIGH_OUTPUT_EVOLUTION = ELECTRIC_SHOCK_SPELL ? ELECTRIC_SHOCK_SPELL.evolut
 // treatment as Black Death/Genocide's own excluded second lines).
 const BLACK_HOLE_FUSION = GAMEDATA.fusions.find(f => f.name === 'Black Hole') || null;
 
+// Origin Explosion: "[Damage] and [Quantity] of Energy Bolts increase based on their duration." Per
+// the user's own resolution of the earlier "does Quantity affect damage per hit?" question — it
+// doesn't, in this calculator (nonCrit/crit are single-hit values; Quantity only changes total
+// spell count, which isn't folded into per-hit damage unless an effect explicitly says so, unlike
+// Nuclear Fusion/Plasma Ray's own count-based Damage Multiplier mechanics). So only the Damage half
+// is implemented here, at the same 1:1-by-analogy assumption as the rest of this family — the
+// Quantity half is a real effect but doesn't change the number this calculator reports.
+const ORIGIN_EXPLOSION_FUSION = GAMEDATA.fusions.find(f => f.name === 'Origin Explosion') || null;
+const ENERGY_BOLT_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Energy Bolt') || null;
+
 // Super Cyclone (Cyclone fusion): "[Damage Multiplier] increases in relation to how long Cyclones
 // persist" — unlike every other fusion in the dataset, it has no flat "Increase X Damage by NX"
 // effect of its own at all; this elapsed-time scaling is its entire damage bonus. Its two other
@@ -2202,12 +2212,27 @@ function compute() {
   const blackHoleDurationMult = blackHoleActive && spell.name === 'Cyclone' ? Math.max(0, 1 + 3 * cycloneDurationBonusPctForBlackHole / 100) : 1;
   if (blackHoleDurationMult !== 1) xMultTotal *= blackHoleDurationMult;
 
-  // Plasma Ray: "Arcane Ray Damage Multiplier increases by 1 per count" — see
-  // computePlasmaRayRayCount above for how the ray count itself is derived.
+  // Origin Explosion: "Damage of Energy Bolts increases based on their duration" — Damage half only
+  // (see ORIGIN_EXPLOSION_FUSION above for why Quantity isn't implemented). UNVERIFIED 1:1 ratio.
+  const originExplosionActive = ORIGIN_EXPLOSION_FUSION && state.fusionIds.includes(ORIGIN_EXPLOSION_FUSION.id);
+  const energyBoltDurationBonusPct = durationPct + durationSpellPct;
+  const originExplosionDurationMult = originExplosionActive && spell.name === 'Energy Bolt' ? Math.max(0, 1 + energyBoltDurationBonusPct / 100) : 1;
+  if (originExplosionDurationMult !== 1) xMultTotal *= originExplosionDurationMult;
+
+  // Plasma Ray: TWO separate, independently-confirmed-vs-unconfirmed mechanics stack here.
+  // (1) "Arcane Ray Damage Multiplier increases by 1 per count" — see computePlasmaRayRayCount
+  // above for how the ray count itself is derived. Long-shipped, not part of the E16 batch.
+  // (2) "Arcane Ray [Size] and [Duration] are converted into Damage" — a SEPARATE conversion this
+  // fusion's own text also states, which no prior session ever implemented (found while cross-
+  // checking fusion text for the rest of this family) — Size% and Duration% combined into one
+  // factor, 1:1 assumed, UNVERIFIED like the rest of this batch.
   const plasmaRayActive = PLASMA_RAY_FUSION && state.fusionIds.includes(PLASMA_RAY_FUSION.id);
   const plasmaRayRayCount = plasmaRayActive ? computePlasmaRayRayCount() : 0;
   const plasmaRayMult = plasmaRayActive && spell.name === 'Arcane Ray' ? 1 + plasmaRayRayCount : 1;
   if (plasmaRayMult !== 1) xMultTotal *= plasmaRayMult;
+  const arcaneRaySizeDurationBonusPct = (sizePct + sizeSpellPct) + (durationPct + durationSpellPct);
+  const plasmaRayConversionMult = plasmaRayActive && spell.name === 'Arcane Ray' ? Math.max(0, 1 + arcaneRaySizeDurationBonusPct / 100) : 1;
+  if (plasmaRayConversionMult !== 1) xMultTotal *= plasmaRayConversionMult;
 
   // Telekinetic Sword: see computeTelekineticSwordStacks above.
   const telekineticSwordActive = TELEKINETIC_SWORD_FUSION && state.fusionIds.includes(TELEKINETIC_SWORD_FUSION.id);
@@ -2313,7 +2338,7 @@ function compute() {
     photonExplosionActive, photonExplosionSizeMult, furnaceActive, furnaceDurationMult, gateActive, gateSizeMult, sizeSpellPct, plasmaRayActive, plasmaRayMult, plasmaRayRayCount,
     ghastlyRampageActive, ghastlyRampageDurationMult, prismSprayActive, prismSprayDurationMult, greatRiftActive, greatRiftSizeMult,
     blackDeathActive, blackDeathSizeMult, genocideActive, genocideSizeMult, hyperionActive, hyperionSizeMult, highOutputActive, highOutputSizeMult,
-    blackHoleActive, blackHoleDurationMult,
+    blackHoleActive, blackHoleDurationMult, originExplosionActive, originExplosionDurationMult, plasmaRayConversionMult,
     telekineticSwordActive, telekineticSwordStacks, telekineticSwordMult, superCycloneActive, infernoActive,
     venomOwned, occultOwned, magicSwordOwned, egoSwordActive, executeThresholdPct, effectiveDamageActive,
     enemyMaxHpReductionGeneralPct, enemyMaxHpReductionGeneralFraction,
@@ -3696,8 +3721,8 @@ function renderEncyclopediaEvolutions() {
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const { evo, spell } of sorted) {
     const unconfirmed = HIGH_OUTPUT_EVOLUTION && evo.id === HIGH_OUTPUT_EVOLUTION.id;
-    const lines = evo.description.map(d => darkCardLine(describeLineNode(d, evo.effects)));
-    if (unconfirmed) lines.push(el('div', { class: 'note' }, 'This calculator treats this Size→Damage conversion as 1:1, its own separate multiplier — unconfirmed (see Mechanics tab).'));
+    const lines = descriptionLinesWithUnconfirmedMarker(evo.description, evo.effects, unconfirmed);
+    if (unconfirmed) lines.push(unconfirmedFootnote());
     grid.appendChild(darkCard({ icon: iconImg('evolution:' + evo.id, 'class-card-icon'), name: evo.name, subtitle: spell.name + ' — Tier ' + evo.tier, lines }));
   }
   wrap.appendChild(grid);
@@ -3713,7 +3738,27 @@ const UNCONFIRMED_CONVERSION_FUSION_NOTES = new Map([
   [PRISM_SPRAY_FUSION, '1:1 Duration→Damage'], [GREAT_RIFT_FUSION, '1:1 Size→Damage'],
   [BLACK_DEATH_FUSION, '1:1 Size→Damage'], [GENOCIDE_FUSION, '1:1 Size→Damage'],
   [HYPERION_FUSION, '1:1 Size→Damage (additional factor)'], [BLACK_HOLE_FUSION, '3X Duration→Damage'],
+  [ORIGIN_EXPLOSION_FUSION, '1:1 Duration→Damage'], [PLASMA_RAY_FUSION, '1:1 Size+Duration→Damage (additional factor)'],
 ].filter(([f]) => f));
+// Marks whichever description line actually states a fusion/evolution's stat→Damage conversion
+// (found via this same wording across every item in this family — "proportionally", "converted
+// into", or Origin Explosion's own "increase based on their duration") — used to place the
+// unconfirmed-value asterisk next to that specific claim rather than on every line of the card.
+const CONVERSION_LINE_RE = /proportionally|converted into|based on (its|their) duration/i;
+function descriptionLinesWithUnconfirmedMarker(description, effects, isUnconfirmed) {
+  let marked = false;
+  return description.map(d => {
+    const nodes = [].concat(describeLineNode(d, effects));
+    if (isUnconfirmed && !marked && CONVERSION_LINE_RE.test(resolveDisplayText(d) || '')) {
+      nodes.push(el('sup', { class: 'unconfirmed-asterisk' }, '*'));
+      marked = true;
+    }
+    return el('div', { class: 'class-card-line' }, nodes);
+  });
+}
+function unconfirmedFootnote() {
+  return el('div', { class: 'note' }, [el('sup', { class: 'unconfirmed-asterisk' }, '*'), document.createTextNode(' Unconfirmed — see Mechanics tab.')]);
+}
 
 function renderEncyclopediaFusions() {
   const wrap = el('div', {});
@@ -3726,8 +3771,8 @@ function renderEncyclopediaFusions() {
   if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
   for (const f of sorted) {
     const unconfirmedRatio = UNCONFIRMED_CONVERSION_FUSION_NOTES.get(f);
-    const lines = f.description.map(d => darkCardLine(describeLineNode(d, f.effects)));
-    if (unconfirmedRatio) lines.push(el('div', { class: 'note' }, 'This calculator treats this conversion as ' + unconfirmedRatio + ', its own separate multiplier — unconfirmed (see Mechanics tab).'));
+    const lines = descriptionLinesWithUnconfirmedMarker(f.description, f.effects, !!unconfirmedRatio);
+    if (unconfirmedRatio) lines.push(unconfirmedFootnote());
     grid.appendChild(darkCard({ icon: iconImg('fusion:' + f.id, 'class-card-icon'), name: f.name, lines }));
   }
   wrap.appendChild(grid);
@@ -3747,7 +3792,7 @@ function renderEncyclopediaUltimates() {
   for (const { f, ult } of sorted) {
     const lines = [];
     if (f.ultimateDescription) lines.push(darkCardLine(highlightStatKeywords(resolveDisplayText(f.ultimateDescription))));
-    if (ult.multiplier) lines.push(el('div', { class: 'note' }, '×' + ult.multiplier + ' damage multiplier' + (ult.verified === true ? ' ✓' : ' (approx.)')));
+    if (ult.multiplier) lines.push(el('div', { class: 'note' }, '×' + ult.multiplier + ' damage multiplier' + (ult.verified === true ? '' : ' (approx.)')));
     if (ult.damageScalingText) lines.push(el('div', { class: 'note' }, ult.damageScalingText));
     grid.appendChild(darkCard({
       icon: iconImg('ultimate:' + f.id, 'class-card-icon') || iconImg('fusion:' + f.id, 'class-card-icon'),
@@ -3919,6 +3964,8 @@ function renderMechanicsTab() {
       'Hyperion (Satellite) — Size → Damage, 1:1, assumed (additional to its own separately-confirmed count-based factor).',
       'High Output (Electric Shock evolution) — Size → Damage, 1:1, assumed.',
       'Black Hole (Cyclone) — Duration → Damage, 3X stated directly in the game\'s own text (more trustworthy than the 1:1 assumptions above).',
+      'Origin Explosion (Energy Bolt) — Duration → Damage, 1:1, assumed. Its own text also grants Quantity from Duration — not implemented, since Quantity doesn\'t affect this calculator\'s per-hit damage number.',
+      'Plasma Ray (Arcane Ray) — Size + Duration → Damage (combined into one factor), 1:1, assumed. Additional to its own separately-confirmed ray-count Damage Multiplier — a real mechanic its own text states that no prior session had implemented.',
     ].map(t => el('div', { class: 'mech-conversion-item' }, t))),
   ]));
 

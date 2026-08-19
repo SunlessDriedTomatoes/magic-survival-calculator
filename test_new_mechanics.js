@@ -393,6 +393,30 @@ r = compute();
 check('Black Hole: blackHoleActive = true', r.blackHoleActive, true);
 check("Black Hole: blackHoleDurationMult = 1.36 (1 + 3 x Harmony's 12% All Magic Duration)", r.blackHoleDurationMult, 1.36);
 
+// --- Origin Explosion: "Damage of Energy Bolts increases based on their duration" — Damage portion
+// only, Quantity intentionally not implemented (see ORIGIN_EXPLOSION_FUSION comment: Quantity
+// doesn't affect this calculator's per-hit damage number). No self-granted Duration in Origin
+// Explosion's own effects, so uses Harmony (+12% All Magic Duration) as the source. ---
+reset();
+own('Harmony');
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Origin Explosion').id];
+state.selectedSpellId = 16; // Energy Bolt
+r = compute();
+check('Origin Explosion: originExplosionActive = true', r.originExplosionActive, true);
+check("Origin Explosion: originExplosionDurationMult = 1.12 (1 + Harmony's 12% All Magic Duration)", r.originExplosionDurationMult, 1.12);
+
+// --- Plasma Ray: an ADDITIONAL "Arcane Ray Size and Duration are converted into Damage" factor,
+// combining both stats into one 1:1-assumed multiplier, on top of its own separately-confirmed
+// ray-count Damage Multiplier (plasmaRayMult, untouched by this addition). Uses Gunpowder (+10%
+// Size) + Harmony (+12% Duration) as sources. ---
+reset();
+own('Gunpowder'); own('Harmony');
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Plasma Ray').id];
+state.selectedSpellId = 18; // Arcane Ray
+r = compute();
+check('Plasma Ray: plasmaRayActive = true', r.plasmaRayActive, true);
+check("Plasma Ray: plasmaRayConversionMult = 1.22 (1 + Gunpowder's 10% Size + Harmony's 12% Duration)", r.plasmaRayConversionMult, 1.22);
+
 reset();
 spellState(11).level = 5; spellState(11).evolutions.add(453); // Cloaking -> Space Warp (unlocks at Lv5)
 state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Teleport').id];
