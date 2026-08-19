@@ -284,6 +284,115 @@ r = compute();
 check("Furnace: lavaZoneDurationBonusPct = 30 (Furnace's own +30% Lava Zone Duration)", r.durationPct + r.durationSpellPct, 30);
 check('Furnace: furnaceDurationMult = 1.3', r.furnaceDurationMult, 1.3);
 
+// --- Gate: Flash Shock's own Size% (All-Magic-wide + Flash-Shock-specific) scales Damage 1:1, same
+// pattern as Furnace. UNVERIFIED — ratio assumed by analogy to Space Warp, held for user review. ---
+reset();
+own('Gunpowder'); // +10% All Magic Size
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Gate').id];
+state.selectedSpellId = 21; // Flash Shock
+r = compute();
+check('Gate: gateActive = true', r.gateActive, true);
+check("Gate: gateSizeMult = 1.1 (1 + Gunpowder's 10% All Magic Size)", r.gateSizeMult, 1.1);
+reset();
+own('Gunpowder');
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Gate').id];
+state.selectedSpellId = 1; // Magic Bolt — different spell selected
+r = compute();
+check('Gate: gateSizeMult = 1 while viewing a different spell', r.gateSizeMult, 1);
+
+// --- Ghastly Rampage: "Fireball Damage increases proportionally to its duration" — Fireball's own
+// Duration% scales Damage 1:1. UNVERIFIED ratio, held for user review. No self-granted Duration in
+// Ghastly Rampage's own effects, so uses Harmony (+12% All Magic Duration) as the source. ---
+reset();
+own('Harmony'); // +12% All Magic Duration
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Ghastly Rampage').id];
+state.selectedSpellId = 2; // Fireball
+r = compute();
+check('Ghastly Rampage: ghastlyRampageActive = true', r.ghastlyRampageActive, true);
+check("Ghastly Rampage: ghastlyRampageDurationMult = 1.12 (1 + Harmony's 12% All Magic Duration)", r.ghastlyRampageDurationMult, 1.12);
+
+// --- Prism Spray: "Arcane Ray's Duration is converted into its Damage" — same pattern. No curated
+// ultimate exists for Prism Spray to cross-check this ratio against. ---
+reset();
+own('Harmony');
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Prism Spray').id];
+state.selectedSpellId = 18; // Arcane Ray
+r = compute();
+check('Prism Spray: prismSprayActive = true', r.prismSprayActive, true);
+check("Prism Spray: prismSprayDurationMult = 1.12 (1 + Harmony's 12% All Magic Duration)", r.prismSprayDurationMult, 1.12);
+
+// --- Great Rift: "Frost Nova Damage increases proportionally to its Size" — Great Rift's own fusion
+// effect grants "+50% Frost Nova Size" directly, self-contained like Furnace's test. ---
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Great Rift').id];
+state.selectedSpellId = 5; // Frost Nova
+r = compute();
+check("Great Rift: frostNovaSizeBonusPct = 50 (Great Rift's own +50% Frost Nova Size)", r.sizePct + r.sizeSpellPct, 50);
+check('Great Rift: greatRiftSizeMult = 1.5', r.greatRiftSizeMult, 1.5);
+
+// --- Black Death: "Damage increases proportionally to Fireball size" — Black Death's own fusion
+// effect grants "+100% Fireball Size" directly. Its separate "Convert Piercing to 50% of Count" line
+// is a different, non-damage mechanic, deliberately not implemented here. ---
+reset();
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Black Death').id];
+state.selectedSpellId = 2; // Fireball
+r = compute();
+check("Black Death: fireballSizeBonusPctForBlackDeath = 100 (Black Death's own +100% Fireball Size)", r.sizePct + r.sizeSpellPct, 100);
+check('Black Death: blackDeathSizeMult = 2', r.blackDeathSizeMult, 2);
+
+// --- Genocide: "Arcane Ray Size Increase is converted into Damage" — Genocide's own effects only
+// grant Cooldown/Duration changes (no Size), so uses Gunpowder as the Size source. Its separate "Count
+// increases Damage Multiplier by 4 each" line is a different mechanic, not implemented here. ---
+reset();
+own('Gunpowder');
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Genocide').id];
+state.selectedSpellId = 18; // Arcane Ray
+r = compute();
+check('Genocide: genocideActive = true', r.genocideActive, true);
+check("Genocide: genocideSizeMult = 1.1 (1 + Gunpowder's 10% All Magic Size)", r.genocideSizeMult, 1.1);
+
+// --- Hyperion: "Damage increases proportionally to Satellite size" — an ADDITIONAL factor on top of
+// the existing, separately-confirmed Nuclear-Fusion-adjacent count-based mechanic. Hyperion's own
+// effects grant no Size, so uses Gunpowder as the source. Confirms the two factors coexist without
+// disturbing each other (nuclearFusionMult untouched since Nuclear Fusion evolution isn't picked here). ---
+reset();
+own('Gunpowder');
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Hyperion').id];
+state.selectedSpellId = 4; // Satellite
+r = compute();
+check('Hyperion: hyperionActive = true', r.hyperionActive, true);
+check("Hyperion: hyperionSizeMult = 1.1 (1 + Gunpowder's 10% All Magic Size)", r.hyperionSizeMult, 1.1);
+check('Hyperion: nuclearFusionMult stays 1 (Nuclear Fusion evolution not picked)', r.nuclearFusionMult, 1);
+
+// --- High Output (Electric Shock evolution, NOT fusion-gated): "Size Increase Rate is converted into
+// Damage." Uses the same evolution-active pattern as Space Warp/Nuclear Fusion. Tier 1 unlocks at
+// Electric Shock Lv7. ---
+reset();
+own('Gunpowder');
+spellState(13).level = 7; spellState(13).evolutions.add(471); // Electric Shock -> High Output (unlocks at Lv7)
+state.selectedSpellId = 13; // Electric Shock
+r = compute();
+check('High Output: highOutputActive = true', r.highOutputActive, true);
+check("High Output: highOutputSizeMult = 1.1 (1 + Gunpowder's 10% All Magic Size)", r.highOutputSizeMult, 1.1);
+reset();
+own('Gunpowder');
+state.selectedSpellId = 13; // Electric Shock, evolution NOT picked
+r = compute();
+check('High Output: highOutputActive = false when evolution not picked', r.highOutputActive, false);
+check('High Output: highOutputSizeMult = 1 when evolution not picked', r.highOutputSizeMult, 1);
+
+// --- Black Hole: "Cyclone Duration Increase is converted into Damage 3X" — explicit 3X ratio stated
+// in the data itself, not the 1:1-by-analogy assumption the other items above carry. No self-granted
+// Duration in Black Hole's own effects, so uses Harmony (+12% All Magic Duration) as the source. Its
+// separate "Count increases Damage Multiplier by 3" line is a different mechanic, not implemented. ---
+reset();
+own('Harmony'); // +12% All Magic Duration
+state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Black Hole').id];
+state.selectedSpellId = 12; // Cyclone
+r = compute();
+check('Black Hole: blackHoleActive = true', r.blackHoleActive, true);
+check("Black Hole: blackHoleDurationMult = 1.36 (1 + 3 x Harmony's 12% All Magic Duration)", r.blackHoleDurationMult, 1.36);
+
 reset();
 spellState(11).level = 5; spellState(11).evolutions.add(453); // Cloaking -> Space Warp (unlocks at Lv5)
 state.fusionIds = [GAMEDATA.fusions.find(f => f.name === 'Teleport').id];

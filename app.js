@@ -83,6 +83,7 @@ function defaultState() {
     maxedClassIds: [],
     bonusSelections: {}, fusionIds: [], ultimatesOn: {},
     activeTab: 'calculator', nexusSpellId: null,
+    encyclopediaSubTab: 'spells',
     // One dropdown per owned Enchant level (max 3) — index i is meaningless once level drops below
     // i+1 (that slot's dropdown stops rendering), but the stored id is left as-is rather than
     // pruned, so re-leveling back up restores the previous pick instead of losing it.
@@ -511,6 +512,45 @@ function computeTelekineticSwordStacks() {
 // Explosion's Size term above (not independently confirmed for Furnace specifically).
 const FURNACE_FUSION = GAMEDATA.fusions.find(f => f.name === 'Furnace') || null;
 const LAVA_ZONE_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Lava Zone') || null;
+
+// Gate (Flash Shock fusion): "Flash Shock Size Increase is converted into Damage" — same shape and
+// same 1:1 assumption as Furnace above, just Size instead of Duration. Confirmed a real, previously
+// entirely-unimplemented gap (found via a direct user question, not the earlier systematic audits):
+// this fusion had zero special-casing anywhere in this file despite the mechanic being real text in
+// the raw data, and — unlike Photon Explosion's Shield case — Flash Shock has real, always-present
+// spell-specific Size sources feeding it (its own level-up grants alone are +30% by max level,
+// before any Wipeout/Exidium/Satan's Nails picks), so this wasn't a dormant, never-triggered gap.
+const GATE_FUSION = GAMEDATA.fusions.find(f => f.name === 'Gate') || null;
+
+// UNVERIFIED, HELD PENDING REVIEW — the six fusions/evolutions below (Ghastly Rampage, Prism Spray,
+// Great Rift, Black Death, Genocide, High Output) plus Hyperion's own additional Size term were all
+// found via the same "[stat] is converted into/increases proportionally to Damage" text search that
+// caught Gate, going well beyond the 4 fusions (Space Warp/Furnace/Photon Explosion/Gate) already
+// implemented. Every one of them: (1) has zero special-casing anywhere in this file today, confirmed
+// by grep; (2) assumes the same unconfirmed 1:1 ratio Gate/Furnace/Photon Explosion already carry;
+// and (3) — per explicit user direction — is being implemented as its own separate multiplicative
+// xMultTotal factor (matching Space Warp's real-value-confirmed precedent for this whole mechanic
+// family), NOT folded into the additive Magic Damage pool, but that bucketing choice is ALSO still
+// pending outside confirmation (the user is asking the community directly whether these convert into
+// AMD or their own bucket) — do not treat either the ratio or the bucket as settled. Not yet
+// committed/pushed for the same reason. Three other candidates from the same search (Origin
+// Explosion, Black Hole, Age of the Sun) were deliberately NOT implemented here — see their own
+// notes near GATE_FUSION's compute() block for why each is structurally more uncertain than a
+// simple single-stat 1:1 conversion.
+const GHASTLY_RAMPAGE_FUSION = GAMEDATA.fusions.find(f => f.name === 'Ghastly Rampage') || null;
+const PRISM_SPRAY_FUSION = GAMEDATA.fusions.find(f => f.name === 'Prism Spray') || null;
+const GREAT_RIFT_FUSION = GAMEDATA.fusions.find(f => f.name === 'Great Rift') || null;
+const BLACK_DEATH_FUSION = GAMEDATA.fusions.find(f => f.name === 'Black Death') || null;
+const GENOCIDE_FUSION = GAMEDATA.fusions.find(f => f.name === 'Genocide') || null;
+const HYPERION_FUSION = GAMEDATA.fusions.find(f => f.name === 'Hyperion') || null;
+const ELECTRIC_SHOCK_SPELL = Object.values(GAMEDATA.spells).find(s => s.name === 'Electric Shock') || null;
+const HIGH_OUTPUT_EVOLUTION = ELECTRIC_SHOCK_SPELL ? ELECTRIC_SHOCK_SPELL.evolutions.find(e => e.name === 'High Output') || null : null;
+// Black Hole: unlike the items above, its own text states an explicit 3X conversion ratio ("Cyclone
+// [Duration Increase] is {converted} into [Damage] 〈3X〉") rather than leaving it to be assumed —
+// more trustworthy than the 1:1-by-analogy items, not less. Its own separate "Count increases Damage
+// Multiplier by 3" line is a different, count-based mechanic, deliberately not implemented here (same
+// treatment as Black Death/Genocide's own excluded second lines).
+const BLACK_HOLE_FUSION = GAMEDATA.fusions.find(f => f.name === 'Black Hole') || null;
 
 // Super Cyclone (Cyclone fusion): "[Damage Multiplier] increases in relation to how long Cyclones
 // persist" — unlike every other fusion in the dataset, it has no flat "Increase X Damage by NX"
@@ -1035,13 +1075,18 @@ function classifyEffect(effect, spellName) {
     if (target === spellName) return { kind: 'cooldown', amount: sign * parseFloat(amt), target };
     return { kind: 'other' };
   }
-  // All Magic Size% / Duration% — like cooldown, only the All-Magic-wide form is tracked (a
-  // spell-specific "Increase Flash Shock Size by 25%" isn't part of Matrix's global pool and isn't
-  // used anywhere else in this calculator, so it correctly falls through to 'other').
+  // All Magic Size% / Duration% — the All-Magic-wide form feeds Matrix's global pool; spell-specific
+  // Size (e.g. "Increase Flash Shock Size by 15%") is tracked separately as 'sizeSpell', same
+  // dual-tracking shape as Duration/durationSpell below — needed for Gate's own "Flash Shock Size
+  // Increase is converted into Damage" mechanic (see GATE_FUSION in compute()), which reads Flash
+  // Shock's own TOTAL Size% (spell-specific sources + the All-Magic-wide pool combined), not just
+  // the All-Magic share alone.
   const sizeMatch = text.match(/^(Increase|Decrease) (.+?) Size by ([\d.]+)%/);
   if (sizeMatch) {
     const [, dir, target, amt] = sizeMatch;
-    if (target === 'All Magic') return { kind: 'size', amount: (dir === 'Decrease' ? -1 : 1) * parseFloat(amt), target };
+    const sign = dir === 'Decrease' ? -1 : 1;
+    if (target === 'All Magic') return { kind: 'size', amount: sign * parseFloat(amt), target };
+    if (target === spellName) return { kind: 'sizeSpell', amount: sign * parseFloat(amt), target };
     return { kind: 'other' };
   }
   const durationMatch = text.match(/^(Increase|Decrease) (.+?) Duration by ([\d.]+)%/);
@@ -1423,7 +1468,7 @@ function compute() {
   // effects only (see classifyEffect's 'size'/'duration'). Cooldown's own two pools (per-spell and
   // All-Magic-only) are built as ledgers instead of running sums (see cooldownLedger below), since
   // Cooldown Reduction combines multiplicatively-per-unique-source, not additively.
-  let sizePct = 0, durationPct = 0, durationSpellPct = 0;
+  let sizePct = 0, durationPct = 0, durationSpellPct = 0, sizeSpellPct = 0;
   // New additive-with-itself pools (Evasion/Item Pickup Range/Mana Acquisition/Movement Speed), plus
   // the two multiplicative-per-source ledgers (Cooldown %, Damage Taken %) that feed the various
   // stat-conversion relics below (Oculus/Carnival/Gaia/Abyss/Accelerator/Aegis).
@@ -1460,6 +1505,7 @@ function compute() {
     else if (c.kind === 'cooldown') { cooldownLedger.push({ source, amount: c.amount }); }
     else if (c.kind === 'cooldownAll') { cooldownLedger.push({ source, amount: c.amount }); allMagicCooldownLedger.push({ source, amount: c.amount }); }
     else if (c.kind === 'size') { sizePct += c.amount; }
+    else if (c.kind === 'sizeSpell') { sizeSpellPct += c.amount; }
     else if (c.kind === 'duration') { durationPct += c.amount; }
     else if (c.kind === 'durationSpell') { durationSpellPct += c.amount; }
     else if (c.kind === 'count') { countFlat += c.amount; }
@@ -2084,6 +2130,78 @@ function compute() {
   const furnaceDurationMult = furnaceActive && spell.name === 'Lava Zone' ? Math.max(0, 1 + lavaZoneDurationBonusPct / 100) : 1;
   if (furnaceDurationMult !== 1) xMultTotal *= furnaceDurationMult;
 
+  // Gate: "Flash Shock Size Increase is converted into Damage" — assumed 1:1 with Flash Shock's own
+  // total Size% (All-Magic-wide + Flash-Shock-specific sources combined), same pattern as Furnace's
+  // Duration scaling above (see GATE_FUSION).
+  const gateActive = GATE_FUSION && state.fusionIds.includes(GATE_FUSION.id);
+  const flashShockSizeBonusPct = sizePct + sizeSpellPct;
+  const gateSizeMult = gateActive && spell.name === 'Flash Shock' ? Math.max(0, 1 + flashShockSizeBonusPct / 100) : 1;
+  if (gateSizeMult !== 1) xMultTotal *= gateSizeMult;
+
+  // UNVERIFIED, HELD PENDING REVIEW (see the comment block near GHASTLY_RAMPAGE_FUSION's declaration
+  // above) — the six blocks below plus High Output all assume the same unconfirmed 1:1 ratio and
+  // separate-xMultTotal-factor bucketing Gate/Furnace use, by analogy only. Not committed/pushed yet.
+
+  // Ghastly Rampage: "Fireball Duration Increase is converted proportionally into Damage."
+  const ghastlyRampageActive = GHASTLY_RAMPAGE_FUSION && state.fusionIds.includes(GHASTLY_RAMPAGE_FUSION.id);
+  const fireballDurationBonusPct = durationPct + durationSpellPct;
+  const ghastlyRampageDurationMult = ghastlyRampageActive && spell.name === 'Fireball' ? Math.max(0, 1 + fireballDurationBonusPct / 100) : 1;
+  if (ghastlyRampageDurationMult !== 1) xMultTotal *= ghastlyRampageDurationMult;
+
+  // Prism Spray: "Arcane Ray Duration Increase is converted proportionally into Damage." No curated
+  // ultimate exists for Prism Spray to cross-check this ratio against.
+  const prismSprayActive = PRISM_SPRAY_FUSION && state.fusionIds.includes(PRISM_SPRAY_FUSION.id);
+  const arcaneRayDurationBonusPct = durationPct + durationSpellPct;
+  const prismSprayDurationMult = prismSprayActive && spell.name === 'Arcane Ray' ? Math.max(0, 1 + arcaneRayDurationBonusPct / 100) : 1;
+  if (prismSprayDurationMult !== 1) xMultTotal *= prismSprayDurationMult;
+
+  // Great Rift: "Frost Nova Size Increase is converted proportionally into Damage." No curated
+  // ultimate exists for Great Rift to cross-check this ratio against.
+  const greatRiftActive = GREAT_RIFT_FUSION && state.fusionIds.includes(GREAT_RIFT_FUSION.id);
+  const frostNovaSizeBonusPct = sizePct + sizeSpellPct;
+  const greatRiftSizeMult = greatRiftActive && spell.name === 'Frost Nova' ? Math.max(0, 1 + frostNovaSizeBonusPct / 100) : 1;
+  if (greatRiftSizeMult !== 1) xMultTotal *= greatRiftSizeMult;
+
+  // Black Death: "Fireball Size Increase is converted proportionally into Damage." Black Death also
+  // has a separate "Convert Piercing to 50% of Count" line — a different, non-damage mechanic,
+  // deliberately NOT implemented here.
+  const blackDeathActive = BLACK_DEATH_FUSION && state.fusionIds.includes(BLACK_DEATH_FUSION.id);
+  const fireballSizeBonusPctForBlackDeath = sizePct + sizeSpellPct;
+  const blackDeathSizeMult = blackDeathActive && spell.name === 'Fireball' ? Math.max(0, 1 + fireballSizeBonusPctForBlackDeath / 100) : 1;
+  if (blackDeathSizeMult !== 1) xMultTotal *= blackDeathSizeMult;
+
+  // Genocide: "Arcane Ray Size Increase is converted proportionally into Damage." Genocide also has a
+  // separate "Count increases Damage Multiplier by 4 each" line — a different, count-based mechanic,
+  // deliberately NOT implemented here.
+  const genocideActive = GENOCIDE_FUSION && state.fusionIds.includes(GENOCIDE_FUSION.id);
+  const arcaneRaySizeBonusPct = sizePct + sizeSpellPct;
+  const genocideSizeMult = genocideActive && spell.name === 'Arcane Ray' ? Math.max(0, 1 + arcaneRaySizeBonusPct / 100) : 1;
+  if (genocideSizeMult !== 1) xMultTotal *= genocideSizeMult;
+
+  // Hyperion: "Satellite Size Increase is converted proportionally into Damage" — an ADDITIONAL factor
+  // layered on top of the existing, separately-confirmed Nuclear-Fusion-adjacent count-based mechanic
+  // above (nuclearFusionMult). Must not disturb that existing calculation, only multiply in alongside it.
+  const hyperionActive = HYPERION_FUSION && state.fusionIds.includes(HYPERION_FUSION.id);
+  const satelliteSizeBonusPct = sizePct + sizeSpellPct;
+  const hyperionSizeMult = hyperionActive && spell.name === 'Satellite' ? Math.max(0, 1 + satelliteSizeBonusPct / 100) : 1;
+  if (hyperionSizeMult !== 1) xMultTotal *= hyperionSizeMult;
+
+  // High Output (Electric Shock evolution, NOT fusion-gated): "Size Increase is converted proportionally
+  // into Damage." Uses the same evolution-active pattern as Space Warp/Nuclear Fusion's own gating.
+  const highOutputActive = !!(HIGH_OUTPUT_EVOLUTION && spell.name === 'Electric Shock' &&
+    spellState(state.selectedSpellId).evolutions.has(HIGH_OUTPUT_EVOLUTION.id) &&
+    spellEvolutionTierUnlocked(spell, HIGH_OUTPUT_EVOLUTION.tier, spellState(state.selectedSpellId).level));
+  const electricShockSizeBonusPct = sizePct + sizeSpellPct;
+  const highOutputSizeMult = highOutputActive ? Math.max(0, 1 + electricShockSizeBonusPct / 100) : 1;
+  if (highOutputSizeMult !== 1) xMultTotal *= highOutputSizeMult;
+
+  // Black Hole: explicit 3X ratio (see BLACK_HOLE_FUSION above), not the 1:1-by-analogy assumption
+  // the other items in this block carry.
+  const blackHoleActive = BLACK_HOLE_FUSION && state.fusionIds.includes(BLACK_HOLE_FUSION.id);
+  const cycloneDurationBonusPctForBlackHole = durationPct + durationSpellPct;
+  const blackHoleDurationMult = blackHoleActive && spell.name === 'Cyclone' ? Math.max(0, 1 + 3 * cycloneDurationBonusPctForBlackHole / 100) : 1;
+  if (blackHoleDurationMult !== 1) xMultTotal *= blackHoleDurationMult;
+
   // Plasma Ray: "Arcane Ray Damage Multiplier increases by 1 per count" — see
   // computePlasmaRayRayCount above for how the ray count itself is derived.
   const plasmaRayActive = PLASMA_RAY_FUSION && state.fusionIds.includes(PLASMA_RAY_FUSION.id);
@@ -2192,7 +2310,10 @@ function compute() {
     akashicRecordOwned, magicWandOwned, otherworldlyTentacleOwned,
     spaceWarpEvoActive, cloakingDurationBonusPct, spaceWarpDurationMult, durationSpellPct,
     nuclearFusionActive, nuclearFusionMult,
-    photonExplosionActive, photonExplosionSizeMult, furnaceActive, furnaceDurationMult, plasmaRayActive, plasmaRayMult, plasmaRayRayCount,
+    photonExplosionActive, photonExplosionSizeMult, furnaceActive, furnaceDurationMult, gateActive, gateSizeMult, sizeSpellPct, plasmaRayActive, plasmaRayMult, plasmaRayRayCount,
+    ghastlyRampageActive, ghastlyRampageDurationMult, prismSprayActive, prismSprayDurationMult, greatRiftActive, greatRiftSizeMult,
+    blackDeathActive, blackDeathSizeMult, genocideActive, genocideSizeMult, hyperionActive, hyperionSizeMult, highOutputActive, highOutputSizeMult,
+    blackHoleActive, blackHoleDurationMult,
     telekineticSwordActive, telekineticSwordStacks, telekineticSwordMult, superCycloneActive, infernoActive,
     venomOwned, occultOwned, magicSwordOwned, egoSwordActive, executeThresholdPct, effectiveDamageActive,
     enemyMaxHpReductionGeneralPct, enemyMaxHpReductionGeneralFraction,
@@ -3211,6 +3332,8 @@ const TABS = [
   { id: 'testsubjects', label: 'Test Subjects' },
   { id: 'maxedclasses', label: 'Maxed Classes' },
   ...RARITY_TABS.map(r => ({ id: 'rarity:' + r, label: r })),
+  { id: 'encyclopedia', label: 'Encyclopedia' },
+  { id: 'mechanics', label: 'Mechanics' },
 ];
 
 function selectionCountForTab(tabId) {
@@ -3294,6 +3417,10 @@ function renderTabContent() {
       items: GAMEDATA.artifacts.filter(a => a.rarity === rarity), category: 'Artifact', hasLevels: false,
       sortSelectedFirst: true,
     }));
+  } else if (state.activeTab === 'encyclopedia') {
+    tabContent.appendChild(renderEncyclopediaTab());
+  } else if (state.activeTab === 'mechanics') {
+    tabContent.appendChild(renderMechanicsTab());
   }
 }
 
@@ -3457,6 +3584,315 @@ function renderSynergiesTab() {
     grid.appendChild(card);
   }
   wrap.appendChild(grid);
+  return wrap;
+}
+
+// ===================== Encyclopedia =====================
+// Always-visible reference cards for content that's otherwise only reachable contextually (Spells/
+// Evolutions/Fusions/Ultimates are gated behind the Calculator tab's own selection/level state;
+// Classes/Test Subjects have no lookup view at all outside Maxed Classes/Test Subjects' own
+// progress-tracking tabs). Deliberately shows pure base game values, never state-dependent — stays
+// a clean reference distinct from the Calculator tab, which is where your actual build's numbers
+// live. Ultimates: iterating GAMEDATA.ultimates.byFusionName (not GAMEDATA.fusions + a manual
+// "is this released" check) already excludes the 8 fusions with real-but-unreleased ultimates for
+// free — that curated dict only has the 24 real, live ones to begin with.
+const ENCYCLOPEDIA_SUBTABS = [
+  { id: 'spells', label: 'Spells' },
+  { id: 'evolutions', label: 'Evolutions' },
+  { id: 'fusions', label: 'Fusions' },
+  { id: 'ultimates', label: 'Ultimates' },
+  { id: 'classes', label: 'Classes' },
+  { id: 'testsubjects', label: 'Test Subjects' },
+];
+
+function renderEncyclopediaTab() {
+  const wrap = el('div', { class: 'card-browser' });
+  wrap.appendChild(el('h2', {}, 'Encyclopedia'));
+  wrap.appendChild(el('div', { class: 'sub' }, 'Reference lookup for every Spell, Evolution, Fusion, Ultimate, Class, and Test Subject — base game values, independent of your current build (see the Calculator tab for your actual numbers).'));
+
+  const subBar = el('div', { class: 'rarity-tabbar' });
+  for (const sub of ENCYCLOPEDIA_SUBTABS) {
+    subBar.appendChild(el('button', {
+      class: state.encyclopediaSubTab === sub.id ? 'active' : null,
+      onclick: () => { state.encyclopediaSubTab = sub.id; renderAll(); },
+    }, sub.label));
+  }
+  wrap.appendChild(subBar);
+
+  if (state.encyclopediaSubTab === 'evolutions') wrap.appendChild(renderEncyclopediaEvolutions());
+  else if (state.encyclopediaSubTab === 'fusions') wrap.appendChild(renderEncyclopediaFusions());
+  else if (state.encyclopediaSubTab === 'ultimates') wrap.appendChild(renderEncyclopediaUltimates());
+  else if (state.encyclopediaSubTab === 'classes') wrap.appendChild(renderEncyclopediaClasses());
+  else if (state.encyclopediaSubTab === 'testsubjects') wrap.appendChild(renderEncyclopediaTestSubjects());
+  else wrap.appendChild(renderEncyclopediaSpells());
+
+  return wrap;
+}
+
+function renderEncyclopediaSpells() {
+  const wrap = el('div', {});
+  wrap.appendChild(makeSearchBox('EncySpells', 'spells'));
+  const q = (cardSearchDrafts['EncySpells'] || '').trim().toLowerCase();
+  const spells = [];
+  for (let id = 1; id <= 21; id++) { if (GAMEDATA.spells[id]) spells.push(GAMEDATA.spells[id]); }
+  const filtered = q ? spells.filter(s => s.name.toLowerCase().includes(q) || (resolveDisplayText(s.description) || '').toLowerCase().includes(q)) : spells;
+  const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+
+  const grid = el('div', { class: 'card-grid' });
+  if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
+  for (const s of sorted) {
+    const statsRow = el('div', { class: 'spell-stats' });
+    if (s.base) {
+      for (const [k, v] of Object.entries(s.base)) {
+        if (k === 'name' || k === 'note') continue;
+        statsRow.appendChild(el('div', { class: 'spell-stat' }, [document.createTextNode(labelize(k) + ' '), el('span', { class: 'num' }, String(v))]));
+      }
+    }
+    grid.appendChild(el('div', { class: 'item-card' }, [
+      iconImg('spell:' + s.id, 'ic-icon'),
+      el('div', { class: 'ic-body' }, [
+        el('div', { class: 'ic-name' }, s.name),
+        el('div', { class: 'ic-desc' }, highlightStatKeywords(resolveDisplayText(s.description) || '')),
+        statsRow,
+      ]),
+    ]));
+  }
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function renderEncyclopediaEvolutions() {
+  const wrap = el('div', {});
+  wrap.appendChild(makeSearchBox('EncyEvolutions', 'evolutions'));
+  const q = (cardSearchDrafts['EncyEvolutions'] || '').trim().toLowerCase();
+  const evos = [];
+  for (let id = 1; id <= 21; id++) {
+    const s = GAMEDATA.spells[id];
+    if (!s) continue;
+    for (const evo of s.evolutions) evos.push({ evo, spell: s });
+  }
+  const filtered = q ? evos.filter(({ evo, spell }) => evo.name.toLowerCase().includes(q) || spell.name.toLowerCase().includes(q) || evo.description.join(' ').toLowerCase().includes(q)) : evos;
+  const sorted = [...filtered].sort((a, b) => a.spell.name.localeCompare(b.spell.name) || a.evo.tier - b.evo.tier || a.evo.name.localeCompare(b.evo.name));
+
+  const grid = el('div', { class: 'card-grid' });
+  if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
+  for (const { evo, spell } of sorted) {
+    const unconfirmed = HIGH_OUTPUT_EVOLUTION && evo.id === HIGH_OUTPUT_EVOLUTION.id;
+    grid.appendChild(el('div', { class: 'item-card' }, [
+      iconImg('evolution:' + evo.id, 'ic-icon'),
+      el('div', { class: 'ic-body' }, [
+        el('div', { class: 'ic-name' }, evo.name + ' (' + spell.name + ', Tier ' + evo.tier + ')'),
+        el('div', { class: 'ic-desc' }, evo.description.map(d => el('div', {}, describeLineNode(d, evo.effects)))),
+        unconfirmed ? el('div', { class: 'note' }, 'This calculator treats this Size→Damage conversion as 1:1, its own separate multiplier — unconfirmed (see Mechanics tab).') : null,
+      ]),
+    ]));
+  }
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+// The E16 batch's ratio/bucket questions are still unresolved (see the Mechanics tab's own caveat
+// section and .agentkanban/tasks/task_20260818_e16_size-duration-damage-conversions.md) — flagging
+// it right on each affected fusion's own Encyclopedia card too, not just in Mechanics, per the
+// user's explicit direction, so the uncertainty is visible wherever these numbers actually surface.
+const UNCONFIRMED_CONVERSION_FUSION_NOTES = new Map([
+  [GATE_FUSION, '1:1 Size→Damage'], [GHASTLY_RAMPAGE_FUSION, '1:1 Duration→Damage'],
+  [PRISM_SPRAY_FUSION, '1:1 Duration→Damage'], [GREAT_RIFT_FUSION, '1:1 Size→Damage'],
+  [BLACK_DEATH_FUSION, '1:1 Size→Damage'], [GENOCIDE_FUSION, '1:1 Size→Damage'],
+  [HYPERION_FUSION, '1:1 Size→Damage (additional factor)'], [BLACK_HOLE_FUSION, '3X Duration→Damage'],
+].filter(([f]) => f));
+
+function renderEncyclopediaFusions() {
+  const wrap = el('div', {});
+  wrap.appendChild(makeSearchBox('EncyFusions', 'fusions'));
+  const q = (cardSearchDrafts['EncyFusions'] || '').trim().toLowerCase();
+  const filtered = q ? GAMEDATA.fusions.filter(f => f.name.toLowerCase().includes(q) || f.description.join(' ').toLowerCase().includes(q)) : GAMEDATA.fusions;
+  const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+
+  const grid = el('div', { class: 'card-grid' });
+  if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
+  for (const f of sorted) {
+    const unconfirmedRatio = UNCONFIRMED_CONVERSION_FUSION_NOTES.get(f);
+    grid.appendChild(el('div', { class: 'item-card' }, [
+      iconImg('fusion:' + f.id, 'ic-icon'),
+      el('div', { class: 'ic-body' }, [
+        el('div', { class: 'ic-name' }, f.name),
+        el('div', { class: 'ic-desc' }, descriptionNodes(f.description, f.effects)),
+        unconfirmedRatio ? el('div', { class: 'note' }, 'This calculator treats this conversion as ' + unconfirmedRatio + ', its own separate multiplier — unconfirmed (see Mechanics tab).') : null,
+      ]),
+    ]));
+  }
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function renderEncyclopediaUltimates() {
+  const wrap = el('div', {});
+  wrap.appendChild(makeSearchBox('EncyUltimates', 'ultimates'));
+  const q = (cardSearchDrafts['EncyUltimates'] || '').trim().toLowerCase();
+  const rows = GAMEDATA.fusions.map(f => ({ f, ult: getUltimateInfo(f) })).filter(r => r.ult);
+  const filtered = q ? rows.filter(({ f, ult }) => ult.ultimateName.toLowerCase().includes(q) || f.name.toLowerCase().includes(q)) : rows;
+  const sorted = [...filtered].sort((a, b) => a.ult.ultimateName.localeCompare(b.ult.ultimateName));
+
+  const grid = el('div', { class: 'card-grid' });
+  if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
+  for (const { f, ult } of sorted) {
+    const body = [
+      el('div', { class: 'ic-name' }, ult.ultimateName + ' (' + f.name + ')'),
+      f.ultimateDescription ? el('div', { class: 'ic-desc' }, highlightStatKeywords(resolveDisplayText(f.ultimateDescription))) : null,
+      ult.multiplier ? el('div', { class: 'note' }, '×' + ult.multiplier + ' damage multiplier' + (ult.verified === true ? ' ✓' : ' (approx.)')) : null,
+      ult.damageScalingText ? el('div', { class: 'note' }, ult.damageScalingText) : null,
+    ];
+    grid.appendChild(el('div', { class: 'item-card' }, [
+      iconImg('ultimate:' + f.id, 'ic-icon') || iconImg('fusion:' + f.id, 'ic-icon'),
+      el('div', { class: 'ic-body' }, body),
+    ]));
+  }
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+// Class cards get a distinct dark, decorative visual shell (see .class-card/.class-card-* CSS)
+// modeled on the real in-game class detail screen the user shared reference screenshots of —
+// black background, large display-style title, thin divider. Text coloring reuses the calculator's
+// own stat-color pipeline (effectNode/highlightStatKeywords) rather than trying to replicate the
+// real game's own per-line color rotation, which turned out not to track stat type consistently
+// across all 24 real screenshots (checked directly) — the one real, consistent signal in the real
+// game is that any "(All Classes)" line is always shown distinctly, which isAllClassesEffect (see
+// classAllClassesEffect above) already detects, so that gets its own small badge here instead.
+function renderEncyclopediaClasses() {
+  const wrap = el('div', {});
+  wrap.appendChild(makeSearchBox('EncyClasses', 'classes'));
+  const q = (cardSearchDrafts['EncyClasses'] || '').trim().toLowerCase();
+  const filtered = q ? GAMEDATA.classes.school.filter(c => c.name.toLowerCase().includes(q) || c.description.join(' ').toLowerCase().includes(q)) : GAMEDATA.classes.school;
+  const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+
+  const grid = el('div', { class: 'class-card-grid' });
+  if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
+  for (const cls of sorted) {
+    const lines = cls.effects.map(eff => {
+      const allClasses = isAllClassesEffect(eff);
+      return el('div', { class: 'class-card-line' }, [
+        effectNode(eff),
+        allClasses ? el('span', { class: 'allclasses-badge' }, 'ALL CLASSES') : null,
+      ]);
+    });
+    grid.appendChild(el('div', { class: 'class-card' }, [
+      iconImg('class:' + cls.id, 'class-card-icon'),
+      el('div', { class: 'class-card-name' }, cls.name),
+      el('div', { class: 'class-card-divider' }),
+      el('div', { class: 'class-card-lines' }, lines),
+    ]));
+  }
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function renderEncyclopediaTestSubjects() {
+  const wrap = el('div', {});
+  wrap.appendChild(makeSearchBox('EncyTestSubjects', 'test subjects'));
+  const q = (cardSearchDrafts['EncyTestSubjects'] || '').trim().toLowerCase();
+  const filtered = q ? GAMEDATA.classes.testSubject.filter(t => t.name.toLowerCase().includes(q) || t.description.join(' ').toLowerCase().includes(q)) : GAMEDATA.classes.testSubject;
+  const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+
+  const grid = el('div', { class: 'card-grid' });
+  if (!sorted.length) grid.appendChild(el('div', { class: 'note' }, 'No matches.'));
+  for (const ts of sorted) {
+    grid.appendChild(el('div', { class: 'item-card' }, [
+      iconImg('testSubject:' + ts.id, 'ic-icon'),
+      el('div', { class: 'ic-body' }, [
+        el('div', { class: 'ic-name' }, ts.name),
+        el('div', { class: 'ic-desc' }, descriptionNodes(ts.description, ts.effects)),
+      ]),
+    ]));
+  }
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+// ===================== Mechanics =====================
+// Plain-language explainer of the calculator's own formulas, with real equations (cited against the
+// actual compute() code, not approximated) and a worked numeric example per section. Section 6
+// (Size/Duration -> Damage conversions) covers the pending E16 batch, explicitly marked unconfirmed
+// per the user's own direction — update this section if/when that batch's ratio/bucket questions
+// get resolved (see .agentkanban/tasks/task_20260818_e16_size-duration-damage-conversions.md).
+function mechSection(title, bodyNodes) {
+  return el('div', { class: 'mech-section' }, [
+    el('h3', {}, title),
+    ...bodyNodes,
+  ]);
+}
+function mechEq(text) {
+  return el('div', { class: 'mech-eq' }, text);
+}
+function mechExample(text) {
+  return el('div', { class: 'mech-example' }, [el('span', { class: 'mech-example-label' }, 'Example: '), text]);
+}
+
+function renderMechanicsTab() {
+  const wrap = el('div', { class: 'card-browser mechanics-tab' });
+  wrap.appendChild(el('h2', {}, 'Mechanics'));
+  wrap.appendChild(el('div', { class: 'sub' }, 'How the calculator\'s own formulas work — the same math the Calculator tab actually runs, explained plainly with worked examples.'));
+
+  wrap.appendChild(mechSection('Player Base Stats', [
+    el('div', { class: 'spell-stats' }, [
+      el('div', { class: 'spell-stat' }, [document.createTextNode('Base ATK '), el('span', { class: 'num stat-atk' }, String(PLAYER_BASE_ATK))]),
+      el('div', { class: 'spell-stat' }, [document.createTextNode('Base Crit Chance '), el('span', { class: 'num stat-crit' }, PLAYER_BASE_CRIT_CHANCE + '%')]),
+      el('div', { class: 'spell-stat' }, [document.createTextNode('Base Crit Multiplier '), el('span', { class: 'num stat-crit' }, PLAYER_BASE_CRIT_MULT + '%')]),
+      el('div', { class: 'spell-stat' }, [document.createTextNode('Base Max HP '), el('span', { class: 'num' }, String(PLAYER_BASE_MAX_HP))]),
+      el('div', { class: 'spell-stat' }, [document.createTextNode('Base Move Speed '), el('span', { class: 'num' }, String(PLAYER_BASE_MOVE_SPEED))]),
+    ]),
+    el('div', { class: 'note' }, 'Not player-editable — every bonus you select adds on top of these through the pools below.'),
+  ]));
+
+  wrap.appendChild(mechSection('Core Damage Formula', [
+    mechEq('Non-Crit Damage = Base × ATK × AMP × MDMG × DEM × Class × Additional Damage × Fusion/Ultimate Multiplier'),
+    mechEq('Crit Damage = Non-Crit Damage × (Crit Multiplier / 100)'),
+    el('div', {}, [
+      el('div', {}, [el('span', { class: 'stat-atk' }, 'ATK'), document.createTextNode(' = 100 × (1 + ATK% / 100) — the flat "Increase ATK by X%" pool.')]),
+      el('div', {}, [el('span', { class: 'stat-amp' }, 'AMP'), document.createTextNode(' = 1 + Amplify% / 100 — the "Amplify ATK by X%" pool, mechanically separate from ATK%.')]),
+      el('div', {}, [el('span', { class: 'stat-amd' }, 'MDMG'), document.createTextNode(' = max(0, 1 + Magic Damage% / 100) — the additive Magic/Combination Damage pool.')]),
+      el('div', {}, [el('span', { class: 'stat-xmult' }, 'DEM, Class, Additional Damage, Fusion/Ultimate'), document.createTextNode(' — each its own separate multiplicative factor, not folded into MDMG.')]),
+    ]),
+    mechExample('Base 100, ATK% +50 → ATK = 150, everything else at 1 → Non-Crit = 100 × 150 × 1 × 1 × 1 × 1 × 1 × 1 = 15,000.'),
+  ]));
+
+  wrap.appendChild(mechSection('Cooldown Reduction', [
+    el('div', {}, 'Cooldown Reduction combines multiplicatively across unique sources, not additively — each source\'s own total is grouped first (so two triggers of the same source add together), then every unique source multiplies together.'),
+    mechEq('Final Cooldown Multiplier = ∏ (1 + source_total% / 100) across each unique source'),
+    mechExample('Two different -20% CDR sources: 0.8 × 0.8 = 0.64 → a 36% net reduction, not 40%.'),
+  ]));
+
+  wrap.appendChild(mechSection('Enemy Max HP Reduction', [
+    el('div', {}, 'Same multiplicative-per-source idea as Cooldown Reduction, expressed as a reduction fraction instead of a final multiplier — confirmed against real in-game readings (see the Max HP Reduction rework in this project\'s history).'),
+    mechEq('Reduction Fraction = 1 − ∏ (1 − source% / 100) across each source'),
+    mechExample('Two different -20% sources: 1 − (0.8 × 0.8) = 1 − 0.64 = 0.36 → 36% total reduction, not 40%.'),
+  ]));
+
+  wrap.appendChild(mechSection('Critical Hits', [
+    el('div', {}, ['Crit Chance and Crit Multiplier both start from the base stats above and add every "Increase Critical Strike Rate/Multiplier" bonus you select on top.']),
+    mechEq('Crit Damage = Non-Crit Damage × (Crit Multiplier / 100)'),
+    mechExample('Base Crit Multiplier 200% with no bonuses: a crit simply doubles the non-crit hit.'),
+  ]));
+
+  wrap.appendChild(mechSection('Size/Duration → Damage Conversions (unconfirmed ratios)', [
+    el('div', { class: 'note' }, 'The fusions/evolutions below convert a spell\'s own Size% or Duration% directly into a damage multiplier. Only Space Warp\'s 1:1 ratio has been independently confirmed against a real reported ultimate value — every other ratio below is an assumption by analogy (1:1 unless the item\'s own text states otherwise, like Black Hole\'s 3X), and whether these belong in their own multiplicative bucket (current treatment) versus the additive Magic Damage pool is also still an open question the community is being asked about. Treat every number in this section as provisional.'),
+    el('div', { class: 'mech-conversion-list' }, [
+      'Space Warp (Cloaking) — Duration → Damage, 1:1, confirmed.',
+      'Furnace (Lava Zone) — Duration → Damage, 1:1, assumed.',
+      'Photon Explosion (Shield) — Size → Damage, 1:1, assumed.',
+      'Gate (Flash Shock) — Size → Damage, 1:1, assumed.',
+      'Ghastly Rampage (Fireball) — Duration → Damage, 1:1, assumed.',
+      'Prism Spray (Arcane Ray) — Duration → Damage, 1:1, assumed.',
+      'Great Rift (Frost Nova) — Size → Damage, 1:1, assumed.',
+      'Black Death (Fireball) — Size → Damage, 1:1, assumed.',
+      'Genocide (Arcane Ray) — Size → Damage, 1:1, assumed.',
+      'Hyperion (Satellite) — Size → Damage, 1:1, assumed (additional to its own separately-confirmed count-based factor).',
+      'High Output (Electric Shock evolution) — Size → Damage, 1:1, assumed.',
+      'Black Hole (Cyclone) — Duration → Damage, 3X stated directly in the game\'s own text (more trustworthy than the 1:1 assumptions above).',
+    ].map(t => el('div', { class: 'mech-conversion-item' }, t))),
+  ]));
+
   return wrap;
 }
 
